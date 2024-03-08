@@ -1,3 +1,4 @@
+from time import sleep
 import sys
 import traceback
 import json
@@ -12,23 +13,30 @@ communicationFileAddress = "ipc:///config/communication.icp"
 def router(load: dict):
     message = load['message']
 
-# def transmitter(load: dict):
-#     with :
-#         transmitter.send_msg(load)
+async def transmitter(load: dict):
+     with Pair0(listen=communicationFileAddress) as transmitter:
+       load = json.dumps(load).encode()
+       sleep(3)
+       await transmitter.asend(load)
+       _logger.info("Transmitted data")
 
-def receiver():
-    with Pair0(dial=communicationFileAddress) as receiver:
-        load_bytes = receiver.recv_msg().bytes
-        load_dict = json.loads(load_bytes)
+async def receiver():
+    with Pair0(listen=communicationFileAddress) as receiver:
+        load_bytes = await receiver.arecv()
+        load_dict: dict = json.loads(load_bytes)
         load_id = load_dict['id']
-        _logger.info(f"RECEIVED LOAD WITH ID: {load_id}")
-        receipt = json.dumps({"message": f"RECEIVED LOAD WITH ID {load_id}"})
-        receiver.send(receipt.encode())
+        _logger.info(f"RECEIVED LOAD (size:{len(load_dict)}) WITH ID: {load_id}")
+        receipt = json.dumps({"message": f"RECEIVED LOAD WITH ID {load_id}"}).encode()
+        sleep(3)
+        await receiver.asend(receipt)
+        _logger.info("Sent Response")
         return load_dict
 
 try:
-    load = receiver()
+    load = run(receiver)
     router(load)
+    run(transmitter, {"message": "SOME TESTER DATA"})
 except Exception:
     raise _logger.error(f"Transceiver Communication Error: {traceback.format_exc()}")
+
 sys.stdout.flush()
