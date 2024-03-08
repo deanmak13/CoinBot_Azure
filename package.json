@@ -1,0 +1,24 @@
+{
+  "name": "coinbot",
+  "version": "1.0.0",
+  "description": "Node.js and python crypto analysis and trade service",
+  "main": "src/app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/deanmak13/CoinBot.git"
+  },
+  "author": "The Zakai",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/deanmak13/CoinBot/issues"
+  },
+  "homepage": "https://github.com/deanmak13/CoinBot#readme",
+  "dependencies": {
+    "express": "^4.18.3",
+    "moment": "^2.30.1",
+    "nanomsg": "^4.2.1"
+  }
+}
