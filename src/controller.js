@@ -1,21 +1,18 @@
 const nano = require('nanomsg')
 const { spawn } = require("node:child_process");
 const path = require("node:path");
+const coinbase = require("./coinbase_wrapper");
+const utils = require('./utils');
 
-// Spawning Analytics child process 
-const python = path.join(__dirname.toString(), '..', 'venv', 'Scripts', 'python.exe');
-const technicalAnalyticsScript = path.join(__dirname.toString(), '..', 'analytics', 'transceiver.py');
-const analyticsTransceiverProcess = spawn(python, [technicalAnalyticsScript]);
+let logger = utils.getLogger();
 
-//// SETTING UP IPC
 /**
- * Initialised the Analytics Socket for TPC with the analytics transceiver
+ * Open the Analytics Socket for IPC with the analytics transceiver
  * @returns socket to use in transceiver communication
  */
-function initialiseAnalyticsSocket() {
+function openAnalyticsSocket() {
     var pairSocket = nano.socket('pair');
     var address = "ipc:///config/communication.icp"
-    console.log(address);
     pairSocket.connect(address);
     return pairSocket;
 }
@@ -28,7 +25,7 @@ function initialiseAnalyticsSocket() {
 function sendLoad(load, socket) {
     const serialisedLoad = JSON.stringify(load)
     socket.send(serialisedLoad);
-    console.log("SENT MESSAGE WITH ID: " + load['id'])
+    logger.info("SENT MESSAGE WITH ID: " + load['id'])
 }
 
 /**
@@ -36,11 +33,27 @@ function sendLoad(load, socket) {
  * @param {*} load - load received to be processed
  */
 function processMessages(load){
-    console.log("Received some response..")
-    console.log("THIS IS RECEIVED FROM PYTHON: %s", JSON.parse(load));
+    logger.info("RECEIVED LOAD WITH ID: %d", JSON.parse(load).id);
 }
 
-const controllerSocket = initialiseAnalyticsSocket();
-controllerSocket.on("data", processMessages);
-analyticsTransceiverProcess.stdout.on('data', (data) => {console.log("%s", data)} );
-sendLoad({message: "I AM ZAKAI", id: 13}, controllerSocket)
+function activateAnalyticsTransceiver(){
+    // Spawning Analytics child process 
+    const python = path.join(__dirname.toString(), '..', 'venv', 'Scripts', 'python.exe');
+    const technicalAnalyticsScript = path.join(__dirname.toString(), '..', 'analytics', 'transceiver.py');
+    const analyticsTransceiverProcess = spawn(python, [technicalAnalyticsScript]);
+
+    // Initialise connection to Analytics process, and configure response handling and child process logging
+    const analyticsSocket = openAnalyticsSocket();
+    analyticsSocket.on("data", processMessages);
+    analyticsTransceiverProcess.stdout.on('data', (data) => {console.log("%s", data)} );
+    return analyticsSocket;
+}
+
+function analyseHistoricalData(){
+    let analyticsSocket = activateAnalyticsTransceiver();
+    coinbase.getProductCandles("BTC-USD", 300).then(
+        candlesData => sendLoad({message: JSON.stringify(candlesData), id: 13}, analyticsSocket)
+    );
+}
+
+module.exports = {analyseHistoricalData}

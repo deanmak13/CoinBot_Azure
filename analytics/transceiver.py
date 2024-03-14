@@ -11,7 +11,8 @@ _logger = setup_logger()
 communicationFileAddress = "ipc:///config/communication.icp"
 
 def router(load: dict):
-    message = load['message']
+    message: dict = json.loads(load['message'])
+    print(message)
 
 async def transmitter(load: dict):
      with Pair0(listen=communicationFileAddress) as transmitter:
@@ -35,7 +36,7 @@ async def receiver():
 try:
     load = run(receiver)
     router(load)
-    run(transmitter, {"message": "SOME TESTER DATA"})
+    run(transmitter, {"message": "SOME TESTER DATA", "id": "53"})
 except Exception:
     raise _logger.error(f"Transceiver Communication Error: {traceback.format_exc()}")
 

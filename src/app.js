@@ -1,17 +1,24 @@
-const express = require('express');
+const controller = require('./controller');
+const utils = require('./utils');
 
-const app = express();
-const port = 1313;
+let logger = utils.getLogger();
 
-function helloWorld(request, response){
-    console.log(request);
-    response.send("Hello Zakai!");
-}
+// const express = require('express');
 
-function initiate(){
+// const app = express();
+// const port = 1313;
+
+// function helloWorld(request, response){
+//     console.log(request);
+//     response.send("Hello Zakai!");
+// }
+
+// function initiate(){
     
-}
+// }
 
-app.get('/', helloWorld);
+// app.get('/', helloWorld);
 
-app.listen(port, initiate);
+// app.listen(port, initiate);
+
+controller.analyseHistoricalData();
