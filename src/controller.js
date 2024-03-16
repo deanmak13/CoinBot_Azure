@@ -25,7 +25,7 @@ function openAnalyticsSocket() {
 function sendLoad(load, socket) {
     const serialisedLoad = JSON.stringify(load)
     socket.send(serialisedLoad);
-    logger.info("SENT MESSAGE WITH ID: " + load['id'])
+    logger.info("CONTROLLER SENT MESSAGE WITH ID: " + load['id'])
 }
 
 /**
@@ -33,7 +33,7 @@ function sendLoad(load, socket) {
  * @param {*} load - load received to be processed
  */
 function processMessages(load){
-    logger.info("RECEIVED LOAD WITH ID: %d", JSON.parse(load).id);
+    logger.info("CONTROLLER RECEIVED LOAD WITH ID: %d", JSON.parse(load).id);
 }
 
 function activateAnalyticsTransceiver(){
@@ -51,7 +51,7 @@ function activateAnalyticsTransceiver(){
 
 function analyseHistoricalData(){
     let analyticsSocket = activateAnalyticsTransceiver();
-    coinbase.getProductCandles("BTC-USD", 300).then(
+    coinbase.getProductCandles("BTC-USD", 900).then(
         candlesData => sendLoad({message: JSON.stringify(candlesData), id: 13}, analyticsSocket)
     );
 }

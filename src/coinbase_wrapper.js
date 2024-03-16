@@ -57,6 +57,13 @@ function configuration(url, httpMethod, queryParametersDict){
  * Retrieves candlestick data for a specific product from the Coinbase API.
  * @param {string} productID - The ID of the product.
  * @param {number} granularity - The granularity of the candlestick data.
+ * @returns
+ *    time - bucket start time
+ *    low - lowest price during the bucket interval
+ *    high - highest price during the bucket interval
+ *    open - opening price (first trade) in the bucket interval
+ *    close - closing price (last trade) in the bucket interval
+ *    volume - volume of trading activity during the bucket interval
  */
 async function getProductCandles(productID, granularity){
   let apiUrl = `https://api.exchange.coinbase.com/products/${productID}/candles`;
