@@ -1,44 +1,127 @@
-import talib
-from talib import MA_Type
+from talib import abstract as TA
+import pandas
 import numpy
+from keras.models import Model
+from keras.layers import Input, ConvLSTM1D, Dense, Reshape, TimeDistributed
+from sklearn.model_selection import train_test_split
 
 def perform_technical_analysis(historical_candle_data):
     ### Add additional features to candle data (feature engineering)
-    # Simple moving average
     candle_data = numpy.array(historical_candle_data)
-    print(candle_data)
-    Feature_Engineering(candle_data)
+    features = FeatureEngineering(candle_data).features
+    DeepLearning(data=features, predictor_variable='close')
 
 
-class Feature_Engineering():
-    def __init__(self, candle_data) -> None:
+class DeepLearning():
+    def __init__(self, data :pandas.DataFrame, predictor_variable: str) -> None:
+        # disable_traceback_filtering()
+        self.data = data
+        self.predictor_variable = predictor_variable
+        self.prepare_data()
+        self.model_compilation()
+        self.fit_model()
+
+    def prepare_data(self, time_steps_per_sample=10, test_size=0.2):
+        # shape = (samples, time steps, features) [-1 lets numpy calculate size based on steps+features]. Adjust time_steps per sample to see effects on model
+        # Also extracting predictor variable and as numpy array 
+        self.predictor_variable = self.data.pop(self.predictor_variable).to_numpy().reshape(-1, time_steps_per_sample, 1, 1)
+        self.data = self.data.to_numpy().reshape(-1, time_steps_per_sample, self.data.shape[1], 1)
+        self.train_data, self.test_data, self.train_predictor, self.test_predictor = train_test_split(self.data, self.predictor_variable, test_size=test_size, shuffle=False)
+
+    def model_compilation(self):
+        # Managing data input shape using input/reshape layers
+        main_input = Input(shape=(self.train_data.shape[1], self.train_data.shape[2])) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>). sample_size=none allows for flexible sample size
+        reshaped_input = Reshape((self.train_data.shape[1], self.train_data.shape[2], 1))(main_input)  # Add channel dimension, new shape is (<sample_size>, <time_steps>, <features>, <channel>=1). 1 as time series is only on 1 channel
+
+        # To maintain shape, either kernel size 1 or
+        convlstm = ConvLSTM1D(filters=32, kernel_size=1, activation='relu', return_sequences=False)(reshaped_input)
+
+        outputs = TimeDistributed(Dense(1))(convlstm)
+
+        self.model = Model(inputs=main_input, outputs=outputs)
+        self.model.compile(optimizer='adam', loss='mae')
+    
+    def fit_model(self, batch_size=32, model_validation_split=0.8):
+        print(self.train_predictor.shape)
+        print(self.train_data.shape)
+        fitted_model = self.model.fit(self.train_data, self.train_predictor, validation_split=model_validation_split, batch_size=batch_size)
+        # Evaluate the models performance upon fitting
+        model_evaluation = fitted_model.evaluate(self.test_data, self.test_predictor)
+        test_prediction = fitted_model.predict(self.test_data)
+        prediction_data_comparison = pandas.DataFrame({'True Values': self.test_predictor.flatten(), 'Predicted Values': test_prediction.flatten()})
+        print("Model Performance: \n\n" + model_evaluation)
+        print(prediction_data_comparison)
+
+class FeatureEngineering():
+    def __init__(self, candle_data: numpy.ndarray) -> None:
         self.candle_data = candle_data
-        self.low = self.candle_data[:,1]
-        self.high = self.candle_data[:,2]
-        self.close = self.candle_data[:,4]
-        self.volume = self.candle_data[:,5]
-        self.calculate_overlay_studies()
-        self.calculate_momentum_indicators()
-        self.calculate_volume_indicators()
+        self.candle_data_names = ['timestamp', 'low', 'high', 'open', 'close', 'volume']  # Assuming candle_data includes timestamp
+        self.analysis_inputs = {
+            'low': candle_data[:,1],
+            'high': candle_data[:,2],
+            'open': candle_data[:,3],
+            'close': candle_data[:,4],
+            'volume': candle_data[:,5]
+        }
+        self.engineer_features()
+
+    def engineer_features(self):
+        initial_indicators, initial_indicators_names = self.append_technical_analysis_indicators()
+        self.initial_indicators_df = pandas.DataFrame(initial_indicators, columns=initial_indicators_names)
+        self.interpolate_missing_values()
+        self.features = self.correlation_analysis()
+
+    def append_technical_analysis_indicators(self):
+        overlay_studies, overlay_studies_names = self.calculate_overlay_studies()
+        momentum_indicators, momentum_indicators_names = self.calculate_momentum_indicators()
+        volume_indicators, volume_indicators_names = self.calculate_volume_indicators()
+        volatility_indicators, volatility_indicators_names = self.calculate_volatility_indicators()
+        features_names = self.candle_data_names + overlay_studies_names + momentum_indicators_names + volume_indicators_names + volatility_indicators_names
+        features = numpy.concatenate((self.candle_data, overlay_studies, momentum_indicators, volume_indicators, volatility_indicators), axis=1)
+        return features, features_names
+    
+    def interpolate_missing_values(self):
+        self.initial_indicators_df['timestamp'] = pandas.to_datetime(self.initial_indicators_df['timestamp'], unit='s')
+        self.initial_indicators_df.set_index('timestamp', inplace=True)
+        self.initial_indicators_df.bfill(inplace=True)
+
+    def correlation_analysis(self):
+        threshold=0.61
+        correlation_matrix = self.initial_indicators_df.corr().abs()
+        average_correlation = correlation_matrix.mean()
+        columns_to_remove = average_correlation[average_correlation >= threshold].index
+        columns_to_remove = columns_to_remove.drop('close', errors='ignore')
+        selected_features = self.initial_indicators_df.drop(columns=columns_to_remove)
+        return selected_features        
 
     def calculate_overlay_studies(self):
         # NOTE: due to formula, increasing timeperiod reduces number of non-NaN observations
-        time_window = 2
-        SMA = talib.SMA(self.close, timeperiod=time_window)
-        WMA = talib.WMA(self.close, timeperiod=time_window)
-        EMA = talib.EMA(self.close, timeperiod=time_window)
-        KAMA = talib.KAMA(self.close, timeperiod=time_window)
-        # print(WMA)
-    
+        timeperiod = 2
+        SMA = TA.SMA(self.analysis_inputs, timeperiod=timeperiod)
+        WMA = TA.WMA(self.analysis_inputs, timeperiod=timeperiod)
+        EMA = TA.EMA(self.analysis_inputs, timeperiod=timeperiod)
+        KAMA = TA.KAMA(self.analysis_inputs, timeperiod=timeperiod)
+        BBAND_upper, BBAND_middle, BBAND_lower = TA.BBANDS(self.analysis_inputs, timeperiod=timeperiod, nbdevup=2.0, nbdevdn=2.0, matype=0)
+        overlay_studies_names = ['SMA', 'WMA', 'EMA', 'KAMA', 'BBAND_upper', 'BBAND_middle', 'BBAND_lower']
+        return numpy.column_stack((SMA, WMA, EMA, KAMA, BBAND_upper, BBAND_middle, BBAND_lower)), overlay_studies_names
+
     def calculate_momentum_indicators(self):
-        time_window = 2
-        RSI = talib.RSI(self.close, timeperiod=time_window)
-        MACD, MACD_Signal, MACD_History = talib.MACD(self.close, fastperiod=12, slowperiod=26, signalperiod=9)
-        MOM = talib.MOM(self.close, timeperiod=10)
-        MFI = talib.MFI(self.high, self.low, self.close, self.volume, timeperiod=14)
-        # print(MACD, MACD_Signal, MACD_History)
-        # print(RSI)
+        timeperiod = 2
+        RSI = TA.RSI(self.analysis_inputs, timeperiod=timeperiod)
+        MACD, MACD_Signal, MACD_History = TA.MACD(self.analysis_inputs, fastperiod=12, slowperiod=26, signalperiod=9)
+        MOM = TA.MOM(self.analysis_inputs, timeperiod=timeperiod)
+        MFI = TA.MFI(self.analysis_inputs, timeperiod=timeperiod)
+        ROC = TA.ROC(self.analysis_inputs, timeperiod=timeperiod)
+        momentum_indicators_names = ['RSI', 'MACD', 'MACD_Signal', 'MACD_History', 'MOM', 'MFI', 'ROC']
+        return numpy.column_stack((RSI, MACD, MACD_Signal, MACD_History, MOM, MFI, ROC)), momentum_indicators_names
 
     def calculate_volume_indicators(self):
-        OBV = talib.OBV(self.close, self.volume)
-        # print(OBV)
+        OBV = TA.OBV(self.analysis_inputs)
+        volume_indicators_names = ['OBV']
+        return numpy.column_stack((OBV,)), volume_indicators_names
+
+    def calculate_volatility_indicators(self):
+        timeperiod = 2
+        ATR = TA.ATR(self.analysis_inputs, timeperiod=timeperiod)
+        volatility_indicators_names = ['ATR']
+        return numpy.column_stack((ATR,)), volatility_indicators_names

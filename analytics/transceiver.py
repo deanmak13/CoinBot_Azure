@@ -1,7 +1,6 @@
 import sys
 import traceback
 import json
-import numpy
 from trio import run
 from pynng import Pair0
 from utils import setup_logger
