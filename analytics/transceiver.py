@@ -1,13 +1,15 @@
 import sys
+sys.stderr = sys.stdout
+
 import traceback
 import json
 from trio import run
 from pynng import Pair0
-from utils import setup_logger
+from utils import get_logger
 from time import sleep
 from technical_analysis import perform_technical_analysis
 
-_logger = setup_logger()
+_logger = get_logger(logger_name="Analytics/Technical Analysis")
 
 communicationFileAddress = "ipc:///config/communication.icp"
 
@@ -40,6 +42,6 @@ try:
     router(load)
     run(transmitter, {"message": "SOME TESTER DATA", "id": "53"})
 except Exception:
-    raise _logger.error(f"Transceiver Communication Error: {traceback.format_exc()}")
+    raise _logger.error(f"Transceiver Communication Error:\n\n\n {traceback.format_exc()}")
 
 sys.stdout.flush()

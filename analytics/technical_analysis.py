@@ -1,9 +1,14 @@
+import sys
+
 from talib import abstract as TA
 import pandas
 import numpy
 from keras.models import Model
-from keras.layers import Input, ConvLSTM1D, Dense, Reshape, TimeDistributed
+from keras.layers import Input, ConvLSTM1D, Dense, Dropout
 from sklearn.model_selection import train_test_split
+from utils import get_logger
+
+_logger = get_logger(logger_name="Analytics/Technical Analysis")
 
 def perform_technical_analysis(historical_candle_data):
     ### Add additional features to candle data (feature engineering)
@@ -15,6 +20,7 @@ def perform_technical_analysis(historical_candle_data):
 class DeepLearning():
     def __init__(self, data :pandas.DataFrame, predictor_variable: str) -> None:
         # disable_traceback_filtering()
+        _logger.info("Deep Learning Initiated...")
         self.data = data
         self.predictor_variable = predictor_variable
         self.prepare_data()
@@ -30,30 +36,37 @@ class DeepLearning():
 
     def model_compilation(self):
         # Managing data input shape using input/reshape layers
-        main_input = Input(shape=(self.train_data.shape[1], self.train_data.shape[2])) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>). sample_size=none allows for flexible sample size
-        reshaped_input = Reshape((self.train_data.shape[1], self.train_data.shape[2], 1))(main_input)  # Add channel dimension, new shape is (<sample_size>, <time_steps>, <features>, <channel>=1). 1 as time series is only on 1 channel
+        main_input = Input(shape=(self.train_data.shape[1], self.train_data.shape[2], 1)) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>). sample_size=none allows for flexible sample size
+        # reshaped_input = Reshape((self.train_data.shape[1], self.train_data.shape[2], 1))(main_input)  # Add channel dimension, new shape is (<sample_size>, <time_steps>, <features>, <channel>=1). 1 as time series is only on 1 channel
 
         # To maintain shape, either kernel size 1 or
-        convlstm = ConvLSTM1D(filters=32, kernel_size=1, activation='relu', return_sequences=False)(reshaped_input)
+        convlstm = ConvLSTM1D(filters=32, kernel_size=1, activation='relu', return_sequences=False)(main_input)
 
-        outputs = TimeDistributed(Dense(1))(convlstm)
+        dropout = Dropout(0.2)(convlstm)
+
+        outputs = Dense(1)(dropout)
 
         self.model = Model(inputs=main_input, outputs=outputs)
         self.model.compile(optimizer='adam', loss='mae')
     
-    def fit_model(self, batch_size=32, model_validation_split=0.8):
-        print(self.train_predictor.shape)
-        print(self.train_data.shape)
-        fitted_model = self.model.fit(self.train_data, self.train_predictor, validation_split=model_validation_split, batch_size=batch_size)
+    def fit_model(self, batch_size=32, model_validation_split=0.1):
+        _logger.info(f"Training model to data of shape: {self.train_data.shape}")
+        print(self.train_data)
+        print(self.train_predictor)
+        self.model.fit(self.train_data, self.train_predictor, validation_split=model_validation_split, batch_size=batch_size)
         # Evaluate the models performance upon fitting
-        model_evaluation = fitted_model.evaluate(self.test_data, self.test_predictor)
-        test_prediction = fitted_model.predict(self.test_data)
+        model_evaluation = self.model.evaluate(self.test_data, self.test_predictor)
+        test_prediction = self.model.predict(self.test_data)
         prediction_data_comparison = pandas.DataFrame({'True Values': self.test_predictor.flatten(), 'Predicted Values': test_prediction.flatten()})
-        print("Model Performance: \n\n" + model_evaluation)
+        print(f"Model Performance: {model_evaluation}")
         print(prediction_data_comparison)
+
+
+
 
 class FeatureEngineering():
     def __init__(self, candle_data: numpy.ndarray) -> None:
+        _logger.info("Feature Engineering Initiated...")
         self.candle_data = candle_data
         self.candle_data_names = ['timestamp', 'low', 'high', 'open', 'close', 'volume']  # Assuming candle_data includes timestamp
         self.analysis_inputs = {
@@ -91,6 +104,7 @@ class FeatureEngineering():
         average_correlation = correlation_matrix.mean()
         columns_to_remove = average_correlation[average_correlation >= threshold].index
         columns_to_remove = columns_to_remove.drop('close', errors='ignore')
+        _logger.info(f"Removing the following overcorrelating features: {columns_to_remove.to_list()}")
         selected_features = self.initial_indicators_df.drop(columns=columns_to_remove)
         return selected_features        
 
