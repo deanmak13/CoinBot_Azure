@@ -3,9 +3,10 @@ import sys
 from talib import abstract as TA
 import pandas
 import numpy
-from keras.models import Model
-from keras.layers import Input, ConvLSTM1D, Dense, Dropout
+from keras.models import Sequential
+from keras.layers import Input, ConvLSTM1D, Dense, Dropout, RepeatVector, Reshape, MaxPooling2D
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
 from utils import get_logger
 
 _logger = get_logger(logger_name="Analytics/Technical Analysis")
@@ -23,41 +24,65 @@ class DeepLearning():
         _logger.info("Deep Learning Initiated...")
         self.data = data
         self.predictor_variable = predictor_variable
+        self.time_steps_per_sample=10
+        self.data_scaler = MinMaxScaler()
+        self.predictor_scaler = MinMaxScaler()
         self.prepare_data()
         self.model_compilation()
         self.fit_model()
 
-    def prepare_data(self, time_steps_per_sample=10, test_size=0.2):
+    def prepare_data(self, test_size=0.2):
         # shape = (samples, time steps, features) [-1 lets numpy calculate size based on steps+features]. Adjust time_steps per sample to see effects on model
         # Also extracting predictor variable and as numpy array 
-        self.predictor_variable = self.data.pop(self.predictor_variable).to_numpy().reshape(-1, time_steps_per_sample, 1, 1)
-        self.data = self.data.to_numpy().reshape(-1, time_steps_per_sample, self.data.shape[1], 1)
-        self.train_data, self.test_data, self.train_predictor, self.test_predictor = train_test_split(self.data, self.predictor_variable, test_size=test_size, shuffle=False)
+        predictor_variable = self.data.pop(self.predictor_variable).to_numpy()
+        data = self.data.to_numpy()
+        data_normalized, predictor_variable_normalzed = self.data_normalisation(data_array=data, predictor_array=predictor_variable)
+        data_normalized = data_normalized.reshape(-1, self.time_steps_per_sample, data.shape[1], 1)
+        predictor_variable_normalzed = predictor_variable_normalzed.reshape(-1, self.time_steps_per_sample, 1, 1)
+        self.train_data, self.test_data, self.train_predictor, self.test_predictor = train_test_split(data_normalized, predictor_variable_normalzed, test_size=test_size, shuffle=False)
+
+    def data_normalisation(self, data_array: numpy.ndarray, predictor_array: numpy.ndarray):
+        predictor_variable_normalzed = self.predictor_variable_normalzed = self.predictor_scaler.fit_transform(predictor_array.reshape(-1, 1))
+        data_normalized = self.data_scaler.fit_transform(data_array)
+        return data_normalized, predictor_variable_normalzed
+
+    def prediction_denormalisation(self, prediction_array: numpy.ndarray):
+        return self.predictor_scaler.inverse_transform(prediction_array.reshape(1, -1)).flatten()
 
     def model_compilation(self):
+        self.model = Sequential()
         # Managing data input shape using input/reshape layers
-        main_input = Input(shape=(self.train_data.shape[1], self.train_data.shape[2], 1)) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>). sample_size=none allows for flexible sample size
-        # reshaped_input = Reshape((self.train_data.shape[1], self.train_data.shape[2], 1))(main_input)  # Add channel dimension, new shape is (<sample_size>, <time_steps>, <features>, <channel>=1). 1 as time series is only on 1 channel
+        self.model.add(Input(shape=(self.train_data.shape[1], self.train_data.shape[2], 1))) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>, <channel>=1). sample_size=none allows for flexible sample size. 1 as time series is only on 1 channel
+        # self.model.add(Reshape((self.train_data.shape[1], self.train_data.shape[2], 1, 1))) # Add channel dimension, new shape is (<sample_size>, <time_steps>, <features>, <channel>=1). 1 as time series is only on 1 channel
+    
+        self.model.add(Dense(64, activation='relu'))
+        self.model.add(Reshape((self.train_data.shape[1], self.train_data.shape[2], 64)))  # Reshape to match ConvLSTM1D input shape
 
         # To maintain shape, either kernel size 1 or
-        convlstm = ConvLSTM1D(filters=32, kernel_size=1, activation='relu', return_sequences=False)(main_input)
+        self.model.add(ConvLSTM1D(filters=100, kernel_size=20, padding='same', activation='tanh', return_sequences=True))
 
-        dropout = Dropout(0.2)(convlstm)
+        self.model.add(ConvLSTM1D(filters=50, kernel_size=20, padding='same', activation='tanh', return_sequences=True))
+        # Max pooling layer to reduce spatial dimensions
+        self.model.add(MaxPooling2D(pool_size=(self.train_predictor.shape[2], self.train_predictor.shape[1])))
+        self.model.add(Dropout(0.5))
 
-        outputs = Dense(1)(dropout)
+        self.model.add(Dense(64, activation='linear'))
+        self.model.add(Dense(1, activation='linear'))
 
-        self.model = Model(inputs=main_input, outputs=outputs)
         self.model.compile(optimizer='adam', loss='mae')
-    
+
+
     def fit_model(self, batch_size=32, model_validation_split=0.1):
-        _logger.info(f"Training model to data of shape: {self.train_data.shape}")
-        print(self.train_data)
-        print(self.train_predictor)
+        _logger.info(f"Training model to train data of shape: {self.train_data.shape}")
         self.model.fit(self.train_data, self.train_predictor, validation_split=model_validation_split, batch_size=batch_size)
         # Evaluate the models performance upon fitting
         model_evaluation = self.model.evaluate(self.test_data, self.test_predictor)
         test_prediction = self.model.predict(self.test_data)
-        prediction_data_comparison = pandas.DataFrame({'True Values': self.test_predictor.flatten(), 'Predicted Values': test_prediction.flatten()})
+        _logger.info(f"Predicting on model to data of shape: {self.test_data.shape}")
+        print(f"TESTPREDICTION SHAPE: {test_prediction.shape}")
+        test_predictor_denormalised = self.prediction_denormalisation(self.test_predictor)
+        test_prediction_denormalised = self.prediction_denormalisation(test_prediction)
+        prediction_data_comparison = pandas.DataFrame({'True Values': test_predictor_denormalised, 'Predicted Values': test_prediction_denormalised})
         print(f"Model Performance: {model_evaluation}")
         print(prediction_data_comparison)
 
@@ -139,3 +164,5 @@ class FeatureEngineering():
         ATR = TA.ATR(self.analysis_inputs, timeperiod=timeperiod)
         volatility_indicators_names = ['ATR']
         return numpy.column_stack((ATR,)), volatility_indicators_names
+
+sys.stdout.flush()
