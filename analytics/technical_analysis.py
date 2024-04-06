@@ -1,12 +1,14 @@
+import json
 import sys
 
 from talib import abstract as TA
 import pandas
 import numpy
-from keras.models import Sequential
-from keras.layers import Input, ConvLSTM1D, Dense, Dropout, RepeatVector, Reshape, MaxPooling2D
+from keras.models import Sequential, model_from_json
+from keras.layers import Input, ConvLSTM1D, Dense, Dropout, RepeatVector, Reshape, MaxPooling2D, LeakyReLU
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
+from matplotlib import pyplot
 from utils import get_logger
 
 _logger = get_logger(logger_name="Analytics/Technical Analysis")
@@ -15,8 +17,7 @@ def perform_technical_analysis(historical_candle_data):
     ### Add additional features to candle data (feature engineering)
     candle_data = numpy.array(historical_candle_data)
     features = FeatureEngineering(candle_data).features
-    DeepLearning(data=features, predictor_variable='close')
-
+    DeepLearning(data=features, predictor_variable='close').generate_new_model()
 
 class DeepLearning():
     def __init__(self, data :pandas.DataFrame, predictor_variable: str) -> None:
@@ -24,21 +25,35 @@ class DeepLearning():
         _logger.info("Deep Learning Initiated...")
         self.data = data
         self.predictor_variable = predictor_variable
-        self.time_steps_per_sample=10
         self.data_scaler = MinMaxScaler()
         self.predictor_scaler = MinMaxScaler()
+        self.performance_dir = "analytics\\model_configs\\performance.csv"
+        self.model_dir = "analytics\\model_configs\\TA_model.json"
+        self.evaluation_plot_dir = "analytics\\model_configs\\evaluation_plot.png"
+
+    def generate_new_model(self):
         self.prepare_data()
         self.model_compilation()
         self.fit_model()
+        self.evaluate_model()
 
-    def prepare_data(self, test_size=0.2):
+    # TODO: resolve model loading issues
+    def load_model(self):
+        self.prepare_data()
+        with open(self.model_dir, 'r') as json_file:
+            json_object = json.load(json_file)
+            self.model = model_from_json(json.dumps(json_object))
+        self.fit_model()
+        self.evaluate_model()
+
+    def prepare_data(self, time_steps_per_sample=1, test_size=0.2):
         # shape = (samples, time steps, features) [-1 lets numpy calculate size based on steps+features]. Adjust time_steps per sample to see effects on model
         # Also extracting predictor variable and as numpy array 
         predictor_variable = self.data.pop(self.predictor_variable).to_numpy()
         data = self.data.to_numpy()
         data_normalized, predictor_variable_normalzed = self.data_normalisation(data_array=data, predictor_array=predictor_variable)
-        data_normalized = data_normalized.reshape(-1, self.time_steps_per_sample, data.shape[1], 1)
-        predictor_variable_normalzed = predictor_variable_normalzed.reshape(-1, self.time_steps_per_sample, 1, 1)
+        data_normalized = data_normalized.reshape(-1, time_steps_per_sample, data.shape[1], 1)
+        predictor_variable_normalzed = predictor_variable_normalzed.reshape(-1, time_steps_per_sample, 1, 1)
         self.train_data, self.test_data, self.train_predictor, self.test_predictor = train_test_split(data_normalized, predictor_variable_normalzed, test_size=test_size, shuffle=False)
 
     def data_normalisation(self, data_array: numpy.ndarray, predictor_array: numpy.ndarray):
@@ -61,31 +76,53 @@ class DeepLearning():
         # To maintain shape, either kernel size 1 or
         self.model.add(ConvLSTM1D(filters=100, kernel_size=20, padding='same', activation='tanh', return_sequences=True))
 
-        self.model.add(ConvLSTM1D(filters=50, kernel_size=20, padding='same', activation='tanh', return_sequences=True))
-        # Max pooling layer to reduce spatial dimensions
-        self.model.add(MaxPooling2D(pool_size=(self.train_predictor.shape[2], self.train_predictor.shape[1])))
-        self.model.add(Dropout(0.5))
+        # self.model.add(ConvLSTM1D(filters=50, kernel_size=20, padding='same', activation='tanh', return_sequences=True))
+        # Max pooling layer to reduce spatial dimensions, due to padding in ConvLSTM1D
+        self.model.add(MaxPooling2D(pool_size=(1, 10)))
+        self.model.add(Dropout(0.8))
 
-        self.model.add(Dense(64, activation='linear'))
+        self.model.add(Dense(64, activation='relu'))
         self.model.add(Dense(1, activation='linear'))
 
         self.model.compile(optimizer='adam', loss='mae')
+        self.model.summary() 
+        # Saving model configurations to json
+        with open(self.model_dir, 'w') as json_file:
+            json_file.write(self.model.to_json())
 
-
-    def fit_model(self, batch_size=32, model_validation_split=0.1):
+    def fit_model(self, compiled_model=None, batch_size=296, model_validation_split=0.1):
+        if not compiled_model:
+            compiled_model = self.model
         _logger.info(f"Training model to train data of shape: {self.train_data.shape}")
-        self.model.fit(self.train_data, self.train_predictor, validation_split=model_validation_split, batch_size=batch_size)
+        compiled_model.fit(self.train_data, self.train_predictor, validation_split=model_validation_split, batch_size=batch_size)
+
+    def evaluate_model(self):
         # Evaluate the models performance upon fitting
-        model_evaluation = self.model.evaluate(self.test_data, self.test_predictor)
+        self.loss_evaluation = self.model.evaluate(self.test_data, self.test_predictor, verbose=2)
         test_prediction = self.model.predict(self.test_data)
-        _logger.info(f"Predicting on model to data of shape: {self.test_data.shape}")
-        print(f"TESTPREDICTION SHAPE: {test_prediction.shape}")
+        _logger.info(f"Predicting on model to data of shape: {self.test_data.shape}, and predictor of shape: {self.test_predictor.shape}, to generate predictions of shape: {test_prediction.shape}")
         test_predictor_denormalised = self.prediction_denormalisation(self.test_predictor)
         test_prediction_denormalised = self.prediction_denormalisation(test_prediction)
-        prediction_data_comparison = pandas.DataFrame({'True Values': test_predictor_denormalised, 'Predicted Values': test_prediction_denormalised})
-        print(f"Model Performance: {model_evaluation}")
-        print(prediction_data_comparison)
+        evaluation_result = pandas.DataFrame({'True Values': pandas.Series(test_predictor_denormalised), 'Predicted Values': pandas.Series(test_prediction_denormalised), 'Loss Evaluation': pandas.Series(self.loss_evaluation)})       
+        evaluation_result.to_csv(self.performance_dir)
+        _logger.info(f"Model Performance -\n Loss Eval: {self.loss_evaluation}\n")
+        print(evaluation_result)
+        self.plot_evaluation(evaluation_result)
 
+    def plot_evaluation(self, dataframe):
+        # Plotting
+        pyplot.figure(figsize=(10, 6))  # Adjust size if needed
+        pyplot.plot(dataframe.index, dataframe['True Values'], label='True Values', marker='o')  # Line plot for column1
+        pyplot.plot(dataframe.index, dataframe['Predicted Values'], label='Predicted Values', marker='s')  # Line plot for column2
+        pyplot.xlabel('Timestep')  # X-axis label
+        pyplot.ylabel('Closing Price')  # Y-axis label
+        pyplot.title('Price Prediction Evaluation')  # Title of the plot
+        pyplot.legend()  # Show legend
+        pyplot.grid(True)  # Show grid
+
+        # Save plot to an image file (e.g., PNG format)
+        pyplot.savefig(self.evaluation_plot_dir)
+        
 
 
 

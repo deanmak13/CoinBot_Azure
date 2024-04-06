@@ -134,6 +134,7 @@ venv/Lib/
 
 # vscod
 .vscode
+.vs
 
 # secret env variables file
 .env
