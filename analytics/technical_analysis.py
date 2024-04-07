@@ -6,6 +6,8 @@ import pandas
 import numpy
 from keras.models import Sequential, model_from_json
 from keras.layers import Input, ConvLSTM1D, Dense, Dropout, RepeatVector, Reshape, MaxPooling2D, LeakyReLU
+from keras.optimizers import Adam
+from keras.losses import Huber
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from matplotlib import pyplot
@@ -70,10 +72,9 @@ class DeepLearning():
         self.model.add(Input(shape=(self.train_data.shape[1], self.train_data.shape[2], 1))) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>, <channel>=1). sample_size=none allows for flexible sample size. 1 as time series is only on 1 channel
         # self.model.add(Reshape((self.train_data.shape[1], self.train_data.shape[2], 1, 1))) # Add channel dimension, new shape is (<sample_size>, <time_steps>, <features>, <channel>=1). 1 as time series is only on 1 channel
     
-        self.model.add(Dense(64, activation='relu'))
+        self.model.add(Dense(64, activation='linear'))
         self.model.add(Reshape((self.train_data.shape[1], self.train_data.shape[2], 64)))  # Reshape to match ConvLSTM1D input shape
 
-        # To maintain shape, either kernel size 1 or
         self.model.add(ConvLSTM1D(filters=100, kernel_size=20, padding='same', activation='tanh', return_sequences=True))
 
         # self.model.add(ConvLSTM1D(filters=50, kernel_size=20, padding='same', activation='tanh', return_sequences=True))
@@ -81,10 +82,10 @@ class DeepLearning():
         self.model.add(MaxPooling2D(pool_size=(1, 10)))
         self.model.add(Dropout(0.8))
 
-        self.model.add(Dense(64, activation='relu'))
+        self.model.add(Dense(64, activation='linear'))
         self.model.add(Dense(1, activation='linear'))
 
-        self.model.compile(optimizer='adam', loss='mae')
+        self.model.compile(optimizer=Adam(learning_rate=0.001), loss=Huber())
         self.model.summary() 
         # Saving model configurations to json
         with open(self.model_dir, 'w') as json_file:
@@ -105,8 +106,8 @@ class DeepLearning():
         test_prediction_denormalised = self.prediction_denormalisation(test_prediction)
         evaluation_result = pandas.DataFrame({'True Values': pandas.Series(test_predictor_denormalised), 'Predicted Values': pandas.Series(test_prediction_denormalised), 'Loss Evaluation': pandas.Series(self.loss_evaluation)})       
         evaluation_result.to_csv(self.performance_dir)
-        _logger.info(f"Model Performance -\n Loss Eval: {self.loss_evaluation}\n")
         print(evaluation_result)
+        _logger.info(f"Model Performance -\n Loss Eval: {round((self.loss_evaluation * 100), 4)}%\n")
         self.plot_evaluation(evaluation_result)
 
     def plot_evaluation(self, dataframe):
