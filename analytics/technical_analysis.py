@@ -4,6 +4,7 @@ import sys
 from talib import abstract as TA
 import pandas
 import numpy
+from keras import saving as keras_saving
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential, model_from_json
 from keras.layers import Input, ConvLSTM1D, Dense, Dropout, RepeatVector, Reshape, MaxPooling2D, LeakyReLU
@@ -21,7 +22,7 @@ def perform_technical_analysis(historical_candle_data):
     ### Add additional features to candle data (feature engineering)
     candle_data = numpy.array(historical_candle_data)
     features = FeatureEngineering(candle_data).features
-    DeepLearning(data=features, predictor_variable='close').generate_new_model()
+    DeepLearning(data=features, predictor_variable='close').load_trained_model()
 
 class DeepLearning():
     def __init__(self, data :pandas.DataFrame, predictor_variable: str) -> None:
@@ -29,25 +30,31 @@ class DeepLearning():
         _logger.info("Deep Learning Initiated...")
         self.data = data
         self.predictor_variable = predictor_variable
-        self.batch_size = 5 #TODO: revert to 1 if too problematic
+        self.batch_size = 1 #TODO: revert to 1 if too problematic
         self.predictor_scaler = MinMaxScaler()
         self.performance_dir = "analytics\\model_artifacts\\performance.csv"
-        self.model_dir = "analytics\\model_artifacts\\TA_model.json"
+        self.model_config_dir = "analytics\\model_artifacts\\TA_model_config.json"
+        self.trained_model_dir = "analytics\\model_artifacts\\TA_model.keras"
         self.evaluation_plot_dir = "analytics\\model_artifacts\\evaluation_plot.png"
 
     def generate_new_model(self):
-        self.train_data, self.test_data, self.train_predictor, self.test_predictor = self.prepare_data()
+        self.prepare_data()
         self.model_compilation()
         self.fit_model()
         self.evaluate_model()
 
     # TODO: resolve model loading issues
-    def load_model(self):
+    def load_model_config(self):
         self.prepare_data()
-        with open(self.model_dir, 'r') as json_file:
+        with open(self.model_config_dir, 'r') as json_file:
             json_object = json.load(json_file)
             self.model = model_from_json(json.dumps(json_object))
         self.fit_model()
+        self.evaluate_model()
+
+    def load_trained_model(self):
+        self.prepare_data()
+        self.model = keras_saving.load_model(self.trained_model_dir)
         self.evaluate_model()
 
     def prepare_data(self, test_size=0.2):
@@ -55,12 +62,12 @@ class DeepLearning():
         # Also extracting predictor variable and as numpy array 
         predictor_variable = self.data.pop(self.predictor_variable).to_numpy()
         data = self.data.to_numpy()
-        data_normalized, predictor_variable_normalzed = self.data_normalisation(data_array=data, predictor_array=predictor_variable)
+        data_normalized, predictor_variable_normalized = self.data_normalisation(data_array=data, predictor_array=predictor_variable)
         data_normalized = data_normalized.reshape(-1, self.batch_size, data.shape[1], 1)
-        predictor_variable_normalzed = predictor_variable_normalzed.reshape(-1, self.batch_size, 1, 1)
-        data_padded = pad_sequences(data_normalized, maxlen=max(len(seq) for seq in data_normalized), padding='post', dtype='float32')
-        predictor_padded = pad_sequences(predictor_variable_normalzed, maxlen=max(len(seq) for seq in predictor_variable_normalzed), padding='post', dtype='float32')
-        return train_test_split(data_padded, predictor_padded, test_size=test_size, shuffle=False)
+        predictor_variable_normalized = predictor_variable_normalized.reshape(-1, self.batch_size, 1, 1)
+        data_normalized = pad_sequences(data_normalized, maxlen=max(len(seq) for seq in data_normalized), padding='post', dtype='float32')
+        predictor_variable_normalized = pad_sequences(predictor_variable_normalized, maxlen=max(len(seq) for seq in predictor_variable_normalized), padding='post', dtype='float32')
+        self.train_data, self.test_data, self.train_predictor, self.test_predictor = train_test_split(data_normalized, predictor_variable_normalized, test_size=test_size, shuffle=False)
 
     def data_normalisation(self, data_array: numpy.ndarray, predictor_array: numpy.ndarray):
         predictor_variable_normalized = self.predictor_scaler.fit_transform(predictor_array.reshape(-1, 1))
@@ -81,15 +88,15 @@ class DeepLearning():
         """
         self.model = Sequential()
         # Managing data input shape using input/reshape layers
-        self.model.add(Input(shape=(self.train_data.shape[1], self.train_data.shape[2], 1), batch_size=1)) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>, <channel>=1). sample_size=none allows for flexible sample size. 1 as time series is only on 1 channel
+        self.model.add(Input(shape=(self.train_data.shape[1], self.train_data.shape[2], 1), batch_size=self.batch_size)) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>, <channel>=1). sample_size=none allows for flexible sample size. 1 as time series is only on 1 channel
                  
         self.model.add(Dense(64, activation='linear'))
         self.model.add(Reshape((self.train_data.shape[1], self.train_data.shape[2], 64)))  # Reshape to match ConvLSTM1D input shape
 
-        self.model.add(ConvLSTM1D(filters=350, kernel_size=20, padding='same', activation='tanh', return_sequences=True, stateful=False))
+        self.model.add(ConvLSTM1D(filters=350, kernel_size=20, padding='same', activation='tanh', return_sequences=True, go_backwards=False, stateful=False))
 
         # Max pooling layer to reduce spatial dimensions, due to padding in ConvLSTM1D
-        self.model.add(MaxPooling2D(pool_size=(1, 10)))
+        self.model.add(MaxPooling2D(pool_size=(self.train_data.shape[1], self.train_data.shape[2])))
         self.model.add(Dropout(0.8))
 
         self.model.add(Dense(64, activation='linear'))
@@ -98,12 +105,12 @@ class DeepLearning():
         self.model.compile(optimizer=Adam(learning_rate=0.001), loss=Huber())
         self.model.summary() 
         # Saving model configurations to json
-        with open(self.model_dir, 'w') as json_file:
+        with open(self.model_config_dir, 'w') as json_file:
             json_file.write(self.model.to_json())
 
     def fit_model(self, compiled_model=None, model_validation_split=0.1):
         """
-        Fits the training data to the model
+        Fits the training data to the model, and saves the 
         :param compiled_model: The model to fit the training data to
         :param model_validation_split: the test and train data the model will use for self evaluations. The ratio representing the amount of test data
         """
@@ -111,6 +118,7 @@ class DeepLearning():
             compiled_model = self.model
         _logger.info(f"Training model to train data of shape: {self.train_data.shape} and train predictor of shape: {self.train_predictor.shape}")
         compiled_model.fit(self.train_data, self.train_predictor, validation_split=model_validation_split, batch_size=self.batch_size) #TODO: figure out why batch size so problematic
+        compiled_model.save(self.trained_model_dir)
 
     def evaluate_model(self):
         """
@@ -134,8 +142,8 @@ class DeepLearning():
         :param dataframe: The evaluation results
         """
         pyplot.figure(figsize=(10, 6))  # Adjust size if needed
-        pyplot.plot(dataframe.index, dataframe['True Values'], label='True Values', marker='o')  # Line plot for column1
-        pyplot.plot(dataframe.index, dataframe['Predicted Values'], label='Predicted Values', marker='s')  # Line plot for column2
+        pyplot.plot(dataframe.index, dataframe['True Values'], label='True Values', marker='.', linestyle='-', markersize=3, linewidth=1) 
+        pyplot.plot(dataframe.index, dataframe['Predicted Values'], label='Predicted Values', marker='.', linestyle='-', markersize=3, linewidth=1) 
         pyplot.xlabel('Timestep')  # X-axis label
         pyplot.ylabel('Closing Price')  # Y-axis label
         pyplot.title('Price Prediction Evaluation')  # Title of the plot
