@@ -1,14 +1,17 @@
 import json
+import os
 import sys
 
 from talib import abstract as TA
 import pandas
 import numpy
+import tqdm
+from tqdm.keras import TqdmCallback
 from keras import saving as keras_saving
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential, model_from_json
 from keras.layers import Input, ConvLSTM1D, Dense, Dropout, RepeatVector, Reshape, MaxPooling2D, LeakyReLU
-from keras.callbacks import LambdaCallback
+from keras.callbacks import LambdaCallback, Callback
 from keras.optimizers import Adam
 from keras.losses import Huber
 from sklearn.model_selection import train_test_split
@@ -23,6 +26,7 @@ def perform_technical_analysis(historical_candle_data):
     candle_data = numpy.array(historical_candle_data)
     features = FeatureEngineering(candle_data).features
     DeepLearning(data=features, predictor_variable='close').load_trained_model()
+    # DeepLearning(data=features, predictor_variable='close').generate_new_model()
 
 class DeepLearning():
     def __init__(self, data :pandas.DataFrame, predictor_variable: str) -> None:
@@ -34,7 +38,7 @@ class DeepLearning():
         self.predictor_scaler = MinMaxScaler()
         self.performance_dir = "analytics\\model_artifacts\\performance.csv"
         self.model_config_dir = "analytics\\model_artifacts\\TA_model_config.json"
-        self.trained_model_dir = "analytics\\model_artifacts\\TA_model.keras"
+        self.trained_model_dir = "analytics\\model_artifacts\\archive\\TA_model.keras"
         self.evaluation_plot_dir = "analytics\\model_artifacts\\evaluation_plot.png"
 
     def generate_new_model(self):
@@ -91,12 +95,12 @@ class DeepLearning():
         self.model.add(Input(shape=(self.train_data.shape[1], self.train_data.shape[2], 1), batch_size=self.batch_size)) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>, <channel>=1). sample_size=none allows for flexible sample size. 1 as time series is only on 1 channel
                  
         self.model.add(Dense(64, activation='linear'))
-        self.model.add(Reshape((self.train_data.shape[1], self.train_data.shape[2], 64)))  # Reshape to match ConvLSTM1D input shape
+        self.model.add(Reshape((-1, self.train_data.shape[2], 64)))  # Reshape to match ConvLSTM1D input shape
 
         self.model.add(ConvLSTM1D(filters=350, kernel_size=20, padding='same', activation='tanh', return_sequences=True, go_backwards=False, stateful=False))
 
         # Max pooling layer to reduce spatial dimensions, due to padding in ConvLSTM1D
-        self.model.add(MaxPooling2D(pool_size=(self.train_data.shape[1], self.train_data.shape[2])))
+        self.model.add(MaxPooling2D(pool_size=(1, self.train_data.shape[2])))
         self.model.add(Dropout(0.8))
 
         self.model.add(Dense(64, activation='linear'))
@@ -130,7 +134,7 @@ class DeepLearning():
         _logger.info(f"Generating predictions of shape: {test_prediction.shape}")
         test_predictor_denormalised = self.prediction_denormalisation(self.test_predictor)
         test_prediction_denormalised = self.prediction_denormalisation(test_prediction)
-        evaluation_result = pandas.DataFrame({'True Values': pandas.Series(test_predictor_denormalised), 'Predicted Values': pandas.Series(test_prediction_denormalised), 'Loss Evaluation': pandas.Series(self.loss_evaluation)})       
+        evaluation_result = pandas.DataFrame({'True Values': pandas.Series(test_predictor_denormalised), 'Predicted Values': pandas.Series(test_prediction_denormalised), 'Loss Evaluation': pandas.Series(self.loss_evaluation), 'Features': pandas.Series(self.data.columns)})      
         evaluation_result.to_csv(self.performance_dir)
         print(evaluation_result)
         _logger.info(f"Model Performance -\n Loss Eval: {round((self.loss_evaluation * 100), 4)}%\n")
@@ -142,8 +146,8 @@ class DeepLearning():
         :param dataframe: The evaluation results
         """
         pyplot.figure(figsize=(10, 6))  # Adjust size if needed
-        pyplot.plot(dataframe.index, dataframe['True Values'], label='True Values', marker='.', linestyle='-', markersize=3, linewidth=1) 
-        pyplot.plot(dataframe.index, dataframe['Predicted Values'], label='Predicted Values', marker='.', linestyle='-', markersize=3, linewidth=1) 
+        pyplot.plot(dataframe.index, dataframe['True Values'], label='True Values', marker='.', linestyle='-', markersize=2, linewidth=0.5) 
+        pyplot.plot(dataframe.index, dataframe['Predicted Values'], label='Predicted Values', marker='.', linestyle='-', markersize=2, linewidth=0.5) 
         pyplot.xlabel('Timestep')  # X-axis label
         pyplot.ylabel('Closing Price')  # Y-axis label
         pyplot.title('Price Prediction Evaluation')  # Title of the plot
