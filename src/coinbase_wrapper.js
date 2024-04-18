@@ -68,7 +68,7 @@ function configuration(url, httpMethod, queryParametersDict){
  *    close - closing price (last trade) in the bucket interval
  *    volume - volume of trading activity during the bucket interval
  */
-async function getProductCandles(productID, granularity, requests=1){
+async function getProductCandles(productID, granularity, requests=1, data_points_limit=0){
   let apiUrl = `https://api.exchange.coinbase.com/products/${productID}/candles`;
   let queryDict = {granularity: granularity};
   try {
@@ -83,6 +83,8 @@ async function getProductCandles(productID, granularity, requests=1){
       let response = await axios(config);
       response_data = response_data.concat(response.data);
     }
+    if (0 < data_points_limit && data_points_limit < response_data.length){
+        response_data = response_data.slice(0, data_points_limit);}
     logger.info("Retrieved %d Total Product Candle Data Points after %d requests", response_data.length, requests)
     return response_data;
   } catch (error) {

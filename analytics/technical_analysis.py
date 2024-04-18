@@ -1,21 +1,18 @@
 import json
-import os
 import sys
 
 from talib import abstract as TA
 import pandas
 import numpy
-import tqdm
-from tqdm.keras import TqdmCallback
 from keras import saving as keras_saving
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential, model_from_json
-from keras.layers import Input, ConvLSTM1D, Dense, Dropout, RepeatVector, Reshape, MaxPooling2D, LeakyReLU
+from keras.layers import Input, ConvLSTM1D, Dense, Dropout, RepeatVector, Reshape, MaxPooling2D, BatchNormalization
 from keras.callbacks import LambdaCallback, Callback
 from keras.optimizers import Adam
 from keras.losses import Huber
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import RobustScaler
 from matplotlib import pyplot
 from utils import get_logger
 
@@ -25,17 +22,17 @@ def perform_technical_analysis(historical_candle_data):
     ### Add additional features to candle data (feature engineering)
     candle_data = numpy.array(historical_candle_data)
     features = FeatureEngineering(candle_data).features
-    DeepLearning(data=features, predictor_variable='close').load_trained_model()
-    # DeepLearning(data=features, predictor_variable='close').generate_new_model()
+    # DeepLearning(data=features, predictor='close').load_trained_model()
+    DeepLearning(data=features, predictor='close').generate_new_model()
 
 class DeepLearning():
-    def __init__(self, data :pandas.DataFrame, predictor_variable: str) -> None:
+    def __init__(self, data :pandas.DataFrame, predictor: str) -> None:
         # disable_traceback_filtering()
         _logger.info("Deep Learning Initiated...")
         self.data = data
-        self.predictor_variable = predictor_variable
+        self.predictor = predictor
         self.batch_size = 1 #TODO: revert to 1 if too problematic
-        self.predictor_scaler = MinMaxScaler()
+        self.predictor_scaler = RobustScaler()
         self.performance_dir = "analytics\\model_artifacts\\performance.csv"
         self.model_config_dir = "analytics\\model_artifacts\\TA_model_config.json"
         self.trained_model_dir = "analytics\\model_artifacts\\archive\\TA_model.keras"
@@ -61,22 +58,38 @@ class DeepLearning():
         self.model = keras_saving.load_model(self.trained_model_dir)
         self.evaluate_model()
 
-    def prepare_data(self, test_size=0.2):
+    def prepare_data(self, test_size=0.2, window_size=5):
         # shape = (samples, time steps, features) [-1 lets numpy calculate size based on steps+features]. Adjust time_steps per sample to see effects on model
         # Also extracting predictor variable and as numpy array 
-        predictor_variable = self.data.pop(self.predictor_variable).to_numpy()
+        predictor = self.data.pop(self.predictor).to_numpy()
+        print(self.data)
         data = self.data.to_numpy()
-        data_normalized, predictor_variable_normalized = self.data_normalisation(data_array=data, predictor_array=predictor_variable)
-        data_normalized = data_normalized.reshape(-1, self.batch_size, data.shape[1], 1)
-        predictor_variable_normalized = predictor_variable_normalized.reshape(-1, self.batch_size, 1, 1)
-        data_normalized = pad_sequences(data_normalized, maxlen=max(len(seq) for seq in data_normalized), padding='post', dtype='float32')
-        predictor_variable_normalized = pad_sequences(predictor_variable_normalized, maxlen=max(len(seq) for seq in predictor_variable_normalized), padding='post', dtype='float32')
-        self.train_data, self.test_data, self.train_predictor, self.test_predictor = train_test_split(data_normalized, predictor_variable_normalized, test_size=test_size, shuffle=False)
+        data_normalized, predictor_normalized = self.data_normalisation(data_array=data, predictor_array=predictor)
+        
+        print(f"prerolling shape: {data_normalized.shape}")
+        print(f"prerolling shape pred: {predictor_normalized.shape}")
+        data_rolling, predictor_rolling = [], []
+        # Creating rolling window in data. Hence, every 5 data values will point to every 5th predictor value
+        for i in range(window_size, data_normalized.shape[0]):
+            data_rolling.append(data_normalized[i-window_size:i])
+            predictor_rolling.append(predictor_normalized[i])
+        data_rolling = numpy.array(data_rolling)
+        predictor_rolling = numpy.array(predictor_rolling).reshape(-1, self.batch_size, 1, 1)
+        data_rolling = data_rolling.reshape(-1, self.batch_size, data_rolling.shape[1], data_rolling.shape[2])
+        print(f"postrolling shape: {numpy.array(data_rolling).shape}")
+        print(f"postrolling shape pred: {numpy.array(predictor_rolling).shape}")
+        data_rolling = pad_sequences(data_rolling, maxlen=max(len(seq) for seq in data_rolling), padding='post', dtype='float32')
+        predictor_rolling = pad_sequences(predictor_rolling, maxlen=max(len(seq) for seq in predictor_rolling), padding='post', dtype='float32')
+        self.train_data, self.test_data, self.train_predictor, self.test_predictor = train_test_split(data_rolling, predictor_rolling, test_size=test_size, shuffle=False)
+        print(f"Train data shape: {self.train_data.shape}, test shape: {self.test_data.shape}")
+        # print(self.test_data)
+        # print(self.test_predictor)
+        # exit()
 
     def data_normalisation(self, data_array: numpy.ndarray, predictor_array: numpy.ndarray):
-        predictor_variable_normalized = self.predictor_scaler.fit_transform(predictor_array.reshape(-1, 1))
-        data_normalized = MinMaxScaler().fit_transform(data_array)
-        return data_normalized, predictor_variable_normalized
+        predictor_normalized = self.predictor_scaler.fit_transform(predictor_array.reshape(-1, 1))
+        data_normalized = RobustScaler().fit_transform(data_array)
+        return data_normalized, predictor_normalized
 
     def prediction_denormalisation(self, prediction_array: numpy.ndarray):
         """
@@ -92,16 +105,18 @@ class DeepLearning():
         """
         self.model = Sequential()
         # Managing data input shape using input/reshape layers
-        self.model.add(Input(shape=(self.train_data.shape[1], self.train_data.shape[2], 1), batch_size=self.batch_size)) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>, <channel>=1). sample_size=none allows for flexible sample size. 1 as time series is only on 1 channel
+        self.model.add(Input(shape=(self.train_data.shape[1], self.train_data.shape[2], self.train_data.shape[3]), batch_size=self.batch_size)) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>, <channel>=1). sample_size=none allows for flexible sample size. 1 as time series is only on 1 channel
                  
         self.model.add(Dense(64, activation='linear'))
         self.model.add(Reshape((-1, self.train_data.shape[2], 64)))  # Reshape to match ConvLSTM1D input shape
 
-        self.model.add(ConvLSTM1D(filters=350, kernel_size=20, padding='same', activation='tanh', return_sequences=True, go_backwards=False, stateful=False))
+        self.model.add(ConvLSTM1D(filters=130, kernel_size=10, padding='same', activation='tanh', return_sequences=True, go_backwards=False, stateful=False))
+        self.model.add(BatchNormalization())
+        self.model.add(ConvLSTM1D(filters=120, kernel_size=10, padding='same', activation='tanh', return_sequences=True, go_backwards=False, stateful=True))
 
         # Max pooling layer to reduce spatial dimensions, due to padding in ConvLSTM1D
         self.model.add(MaxPooling2D(pool_size=(1, self.train_data.shape[2])))
-        self.model.add(Dropout(0.8))
+        self.model.add(Dropout(0.5))
 
         self.model.add(Dense(64, activation='linear'))
         self.model.add(Dense(1, activation='linear'))
@@ -150,7 +165,7 @@ class DeepLearning():
         pyplot.plot(dataframe.index, dataframe['Predicted Values'], label='Predicted Values', marker='.', linestyle='-', markersize=2, linewidth=0.5) 
         pyplot.xlabel('Timestep')  # X-axis label
         pyplot.ylabel('Closing Price')  # Y-axis label
-        pyplot.title('Price Prediction Evaluation')  # Title of the plot
+        pyplot.title(f"Price Prediction Evaluation (Loss eval : {dataframe['Loss Evaluation'][0]} )")  # Title of the plot
         pyplot.legend()  # Show legend
         pyplot.grid(True)  # Show grid
 
@@ -204,8 +219,11 @@ class FeatureEngineering():
         Interpolates any missing data in the initial pre-correlation DataFrame, while also transforming enoch time to datetime
         """
         self.initial_indicators_df['timestamp'] = pandas.to_datetime(self.initial_indicators_df['timestamp'], unit='s')
+        
         self.initial_indicators_df.set_index('timestamp', inplace=True)
-        self.initial_indicators_df.bfill(inplace=True)
+        # self.initial_indicators_df.bfill(inplace=True)
+        self.initial_indicators_df.replace(0, numpy.nan, inplace=True)
+        self.initial_indicators_df.fillna(method='bfill', inplace=True)
 
     def correlation_analysis(self, threshold=0.61):
         """
