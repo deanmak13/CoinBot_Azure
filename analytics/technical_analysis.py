@@ -4,9 +4,10 @@ import sys
 from talib import abstract as TA
 import pandas
 import numpy
+import math
 from keras import saving as keras_saving
 from keras.preprocessing.sequence import pad_sequences
-from keras.models import Sequential, model_from_json
+from keras.models import Sequential, model_from_json, Model
 from keras.layers import Input, ConvLSTM1D, Dense, Dropout, RepeatVector, Reshape, MaxPooling2D, BatchNormalization
 from keras.callbacks import LambdaCallback, Callback
 from keras.optimizers import Adam
@@ -31,7 +32,7 @@ class DeepLearning():
         _logger.info("Deep Learning Initiated...")
         self.data = data
         self.predictor = predictor
-        self.batch_size = 1 #TODO: revert to 1 if too problematic
+        self.model_validation_split = 0.1
         self.predictor_scaler = RobustScaler()
         self.performance_dir = "analytics\\model_artifacts\\performance.csv"
         self.model_config_dir = "analytics\\model_artifacts\\TA_model_config.json"
@@ -59,34 +60,38 @@ class DeepLearning():
         self.evaluate_model()
 
     def prepare_data(self, test_size=0.2, window_size=5):
-        # shape = (samples, time steps, features) [-1 lets numpy calculate size based on steps+features]. Adjust time_steps per sample to see effects on model
-        # Also extracting predictor variable and as numpy array 
+        """
+        Prepare data for model training and testing.
+        :param test_size: The ratio of test observations to be used in self evaluating the model
+        :param window_size: The number of observations in each window
+        """
+        # extracting predictor variable and as numpy array 
         predictor = self.data.pop(self.predictor).to_numpy()
-        print(self.data)
         data = self.data.to_numpy()
         data_normalized, predictor_normalized = self.data_normalisation(data_array=data, predictor_array=predictor)
         
-        print(f"prerolling shape: {data_normalized.shape}")
-        print(f"prerolling shape pred: {predictor_normalized.shape}")
         data_rolling, predictor_rolling = [], []
         # Creating rolling window in data. Hence, every 5 data values will point to every 5th predictor value
         for i in range(window_size, data_normalized.shape[0]):
             data_rolling.append(data_normalized[i-window_size:i])
             predictor_rolling.append(predictor_normalized[i])
+
+        # set batch size based on rolling length
+        self.batch_size = max([i for i in range(1, len(predictor_rolling)) if len(predictor_rolling) % i == 0])
+        
         data_rolling = numpy.array(data_rolling)
         predictor_rolling = numpy.array(predictor_rolling).reshape(-1, self.batch_size, 1, 1)
         data_rolling = data_rolling.reshape(-1, self.batch_size, data_rolling.shape[1], data_rolling.shape[2])
-        print(f"postrolling shape: {numpy.array(data_rolling).shape}")
-        print(f"postrolling shape pred: {numpy.array(predictor_rolling).shape}")
         data_rolling = pad_sequences(data_rolling, maxlen=max(len(seq) for seq in data_rolling), padding='post', dtype='float32')
         predictor_rolling = pad_sequences(predictor_rolling, maxlen=max(len(seq) for seq in predictor_rolling), padding='post', dtype='float32')
         self.train_data, self.test_data, self.train_predictor, self.test_predictor = train_test_split(data_rolling, predictor_rolling, test_size=test_size, shuffle=False)
-        print(f"Train data shape: {self.train_data.shape}, test shape: {self.test_data.shape}")
-        # print(self.test_data)
-        # print(self.test_predictor)
-        # exit()
 
     def data_normalisation(self, data_array: numpy.ndarray, predictor_array: numpy.ndarray):
+        """
+        Normalises the data for model fitting.
+        :param data_array: the numpy array of data
+        :param predictor_array: the numpy array of the predictor data
+        """
         predictor_normalized = self.predictor_scaler.fit_transform(predictor_array.reshape(-1, 1))
         data_normalized = RobustScaler().fit_transform(data_array)
         return data_normalized, predictor_normalized
@@ -103,16 +108,19 @@ class DeepLearning():
         """
         Compiles the multiple layers of the model together
         """
-        self.model = Sequential()
         # Managing data input shape using input/reshape layers
-        self.model.add(Input(shape=(self.train_data.shape[1], self.train_data.shape[2], self.train_data.shape[3]), batch_size=self.batch_size)) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>, <channel>=1). sample_size=none allows for flexible sample size. 1 as time series is only on 1 channel
+        input_batch_size = math.floor((1-self.model_validation_split)*self.train_data.shape[0])
+        print(f"THIS IS INPUT BSTCH SIZEL {input_batch_size}")
+
+        self.model = Sequential()
+        self.model.add(Input(shape=(self.train_data.shape[1], self.train_data.shape[2], self.train_data.shape[3]), batch_size=input_batch_size)) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>, <channel>=1). sample_size=none allows for flexible sample size. 1 as time series is only on 1 channel
                  
         self.model.add(Dense(64, activation='linear'))
         self.model.add(Reshape((-1, self.train_data.shape[2], 64)))  # Reshape to match ConvLSTM1D input shape
 
-        self.model.add(ConvLSTM1D(filters=130, kernel_size=10, padding='same', activation='tanh', return_sequences=True, go_backwards=False, stateful=False))
-        self.model.add(BatchNormalization())
-        self.model.add(ConvLSTM1D(filters=120, kernel_size=10, padding='same', activation='tanh', return_sequences=True, go_backwards=False, stateful=True))
+        self.model.add(ConvLSTM1D(filters=130, kernel_size=10, padding='same', activation='tanh', return_sequences=True, go_backwards=False, stateful=True))
+        # self.model.add(BatchNormalization())
+        # self.model.add(ConvLSTM1D(filters=120, kernel_size=10, padding='same', activation='tanh', return_sequences=True, go_backwards=False, stateful=True))
 
         # Max pooling layer to reduce spatial dimensions, due to padding in ConvLSTM1D
         self.model.add(MaxPooling2D(pool_size=(1, self.train_data.shape[2])))
@@ -121,13 +129,21 @@ class DeepLearning():
         self.model.add(Dense(64, activation='linear'))
         self.model.add(Dense(1, activation='linear'))
 
+        # self.model = Model(inputs=inputs, outputs=outputs)
         self.model.compile(optimizer=Adam(learning_rate=0.001), loss=Huber())
         self.model.summary() 
-        # Saving model configurations to json
+        # Saving model configurations to jsoninput = 
         with open(self.model_config_dir, 'w') as json_file:
             json_file.write(self.model.to_json())
 
-    def fit_model(self, compiled_model=None, model_validation_split=0.1):
+    class ResetStatesCallback(Callback):
+        def on_epoch_begin(self, epoch, logs):
+            self.model.reset_states()
+
+    def reset_states(self, epoch, logs):
+        self.model.layers[3].reset_states()
+
+    def fit_model(self, compiled_model=None):
         """
         Fits the training data to the model, and saves the 
         :param compiled_model: The model to fit the training data to
@@ -136,7 +152,8 @@ class DeepLearning():
         if not compiled_model:
             compiled_model = self.model
         _logger.info(f"Training model to train data of shape: {self.train_data.shape} and train predictor of shape: {self.train_predictor.shape}")
-        compiled_model.fit(self.train_data, self.train_predictor, validation_split=model_validation_split, batch_size=self.batch_size) #TODO: figure out why batch size so problematic
+        reset_states_callback = LambdaCallback(on_epoch_end=self.reset_states)
+        compiled_model.fit(self.train_data, self.train_predictor, validation_split=self.model_validation_split, shuffle=False) #TODO: figure out why batch size so problematic
         compiled_model.save(self.trained_model_dir)
 
     def evaluate_model(self):
