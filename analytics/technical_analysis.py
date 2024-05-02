@@ -8,7 +8,7 @@ import math
 from keras import saving as keras_saving
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential, model_from_json, Model
-from keras.layers import Input, ConvLSTM1D, Dense, Dropout, RepeatVector, Reshape, MaxPooling2D, BatchNormalization
+from keras.layers import Input, ConvLSTM1D, Dense, Dropout, RepeatVector, Reshape, MaxPooling2D, MaxPooling1D, BatchNormalization, TimeDistributed
 from keras.callbacks import LambdaCallback, Callback
 from keras.optimizers import Adam
 from keras.losses import Huber
@@ -77,14 +77,20 @@ class DeepLearning():
             predictor_rolling.append(predictor_normalized[i])
 
         # set batch size based on rolling length
-        self.batch_size = max([i for i in range(1, len(predictor_rolling)) if len(predictor_rolling) % i == 0])
-        
+        # self.batch_size = max([i for i in range(1, len(predictor_rolling)) if len(predictor_rolling) % i == 0])
+
         data_rolling = numpy.array(data_rolling)
-        predictor_rolling = numpy.array(predictor_rolling).reshape(-1, self.batch_size, 1, 1)
-        data_rolling = data_rolling.reshape(-1, self.batch_size, data_rolling.shape[1], data_rolling.shape[2])
-        data_rolling = pad_sequences(data_rolling, maxlen=max(len(seq) for seq in data_rolling), padding='post', dtype='float32')
+        predictor_rolling = numpy.array(predictor_rolling)
+        print(f"POST ROLLING, data_rolling: {data_rolling.shape}, predictor_rolling: {predictor_rolling.shape}\n")
+        # reshape(number of batches, number of observations in each batch, number of features, number of channels)
+        predictor_rolling = predictor_rolling.reshape(-1, 1, 1, 1)
+        data_rolling = data_rolling.reshape(-1, data_rolling.shape[1], data_rolling.shape[2], 1)
+        print(f"POST RESHAPING, data_rolling: {data_rolling.shape}, predictor_rolling: {predictor_rolling.shape}\n")
+        # desired_length = window_size * (len(data_rolling) // window_size)
+        data_rolling = pad_sequences(data_rolling, maxlen=max([len(seq) for seq in data_rolling]), padding='post', dtype='float32')
         predictor_rolling = pad_sequences(predictor_rolling, maxlen=max(len(seq) for seq in predictor_rolling), padding='post', dtype='float32')
         self.train_data, self.test_data, self.train_predictor, self.test_predictor = train_test_split(data_rolling, predictor_rolling, test_size=test_size, shuffle=False)
+        _logger.info(f"SHAPES :- Train data [{self.train_data.shape}] - Train predictor [{self.train_predictor.shape}] - Test data [{self.test_data.shape}] - Test predictor [{self.test_predictor.shape}]")
 
     def data_normalisation(self, data_array: numpy.ndarray, predictor_array: numpy.ndarray):
         """
@@ -108,29 +114,28 @@ class DeepLearning():
         """
         Compiles the multiple layers of the model together
         """
-        # Managing data input shape using input/reshape layers
-        input_batch_size = math.floor((1-self.model_validation_split)*self.train_data.shape[0])
-        print(f"THIS IS INPUT BSTCH SIZEL {input_batch_size}")
+        self.model_batch_size = math.floor((1-self.model_validation_split)*self.train_data.shape[0])
+        self.model_batch_size = self.train_data.shape[0]
+        print(f"THIS IS INPUT BATCH SIZEL {self.model_batch_size}")
 
         self.model = Sequential()
-        self.model.add(Input(shape=(self.train_data.shape[1], self.train_data.shape[2], self.train_data.shape[3]), batch_size=input_batch_size)) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>, <channel>=1). sample_size=none allows for flexible sample size. 1 as time series is only on 1 channel
+        self.model.add(Input(shape=(self.train_data.shape[1], self.train_data.shape[2], 1), batch_size=self.train_data.shape[0])) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>, <channel>=1). sample_size=none allows for flexible sample size. 1 as time series is only on 1 channel
                  
         self.model.add(Dense(64, activation='linear'))
-        self.model.add(Reshape((-1, self.train_data.shape[2], 64)))  # Reshape to match ConvLSTM1D input shape
+        # self.model.add(Reshape((self.train_data.shape[1], self.train_data.shape[2], 64)))  # Reshape to match ConvLSTM1D input shape
 
-        self.model.add(ConvLSTM1D(filters=130, kernel_size=10, padding='same', activation='tanh', return_sequences=True, go_backwards=False, stateful=True))
-        # self.model.add(BatchNormalization())
-        # self.model.add(ConvLSTM1D(filters=120, kernel_size=10, padding='same', activation='tanh', return_sequences=True, go_backwards=False, stateful=True))
+        self.model.add(ConvLSTM1D(filters=300, kernel_size=20, activation='tanh', padding='same', return_sequences=True, go_backwards=False, stateful=False))
+        self.model.add(BatchNormalization())
+        self.model.add(ConvLSTM1D(filters=300, kernel_size=20, padding='same', activation='tanh', go_backwards=False, stateful=False))
 
         # Max pooling layer to reduce spatial dimensions, due to padding in ConvLSTM1D
-        self.model.add(MaxPooling2D(pool_size=(1, self.train_data.shape[2])))
+        self.model.add(MaxPooling1D(pool_size=(self.train_data.shape[1],), strides=6))
         self.model.add(Dropout(0.5))
 
         self.model.add(Dense(64, activation='linear'))
         self.model.add(Dense(1, activation='linear'))
 
-        # self.model = Model(inputs=inputs, outputs=outputs)
-        self.model.compile(optimizer=Adam(learning_rate=0.001), loss=Huber())
+        self.model.compile(optimizer=Adam(learning_rate=0.001), loss="mape")
         self.model.summary() 
         # Saving model configurations to jsoninput = 
         with open(self.model_config_dir, 'w') as json_file:
@@ -141,7 +146,13 @@ class DeepLearning():
             self.model.reset_states()
 
     def reset_states(self, epoch, logs):
-        self.model.layers[3].reset_states()
+        # Iterate through the layers and reset their states if they have a reset_states() method
+        for layer in self.model.layers:
+            if hasattr(layer, 'reset_states'):
+                layer.reset_states()
+                _logger.info(f"Ressetting states after epoch[{epoch}] in layer: {layer}")
+        # convlstm_layer = self.model.layers[1]
+        # convlstm_layer.reset_states()
 
     def fit_model(self, compiled_model=None):
         """
@@ -151,9 +162,9 @@ class DeepLearning():
         """
         if not compiled_model:
             compiled_model = self.model
-        _logger.info(f"Training model to train data of shape: {self.train_data.shape} and train predictor of shape: {self.train_predictor.shape}")
         reset_states_callback = LambdaCallback(on_epoch_end=self.reset_states)
-        compiled_model.fit(self.train_data, self.train_predictor, validation_split=self.model_validation_split, shuffle=False) #TODO: figure out why batch size so problematic
+        # print([seq for seq in self.train_predictor])
+        compiled_model.fit(self.train_data, self.train_predictor, shuffle=False, batch_size=self.model_batch_size, callbacks=[reset_states_callback]) #Batch size must be specified here to avoid issues with input shape mismatches. Potentially 64?
         compiled_model.save(self.trained_model_dir)
 
     def evaluate_model(self):
@@ -252,8 +263,8 @@ class FeatureEngineering():
         average_correlation = correlation_matrix.mean()
         columns_to_remove = average_correlation[average_correlation >= threshold].index
         columns_to_remove = columns_to_remove.drop('close', errors='ignore')
-        _logger.info(f"Removing the following overcorrelating features: {columns_to_remove.to_list()}")
         selected_features = self.initial_indicators_df.drop(columns=columns_to_remove)
+        _logger.info(f"Removing the following overcorrelating features: {columns_to_remove.to_list()}. Remaining predictive feature count: [{selected_features.shape[1] - 1}]")
         return selected_features        
 
     def calculate_overlay_studies(self, timeperiod = 2):

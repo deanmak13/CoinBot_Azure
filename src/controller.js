@@ -51,7 +51,7 @@ function activateAnalyticsTransceiver(){
 
 function analyseHistoricalData(){
     let analyticsSocket = activateAnalyticsTransceiver();
-    coinbase.getProductCandles("BTC-USD", 300, requests=3).then(
+    coinbase.getProductCandles("BTC-USD", 300, requests=2, 436).then(
         candlesData => sendLoad({message: JSON.stringify(candlesData), id: 13}, analyticsSocket)
     );
 }
