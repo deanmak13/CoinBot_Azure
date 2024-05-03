@@ -34,10 +34,10 @@ class DeepLearning():
         self.predictor = predictor
         self.model_validation_split = 0.1
         self.predictor_scaler = RobustScaler()
-        self.performance_dir = "insights\\model_artifacts\\performance.csv"
-        self.model_config_dir = "insights\\model_artifacts\\TA_model_config.json"
-        self.trained_model_dir = "insights\\model_artifacts\\archive\\TA_model.keras"
-        self.evaluation_plot_dir = "insights\\model_artifacts\\evaluation_plot.png"
+        self.performance_dir = "insights\\artifacts\\model_artifacts\\performance.csv"
+        self.model_config_dir = "insights\\artifacts\\model_artifacts\\TA_model_config.json"
+        self.trained_model_dir = "insights\\artifacts\\model_artifacts\\archive\\TA_model.keras"
+        self.evaluation_plot_dir = "insights\\artifacts\\model_artifacts\\evaluation_plot.png"
 
     def generate_new_model(self):
         self.prepare_data()
