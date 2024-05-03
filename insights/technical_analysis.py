@@ -4,14 +4,14 @@ import sys
 from talib import abstract as TA
 import pandas
 import numpy
-import math
 from keras import saving as keras_saving
-from keras.preprocessing.sequence import pad_sequences
-from keras.models import Sequential, model_from_json, Model
-from keras.layers import Input, ConvLSTM1D, Dense, Dropout, RepeatVector, Reshape, MaxPooling2D, MaxPooling1D, BatchNormalization, TimeDistributed
-from keras.callbacks import LambdaCallback, Callback
-from keras.optimizers import Adam
-from keras.losses import Huber
+from keras._tf_keras.keras.preprocessing.sequence import pad_sequences
+from keras.src.models import Sequential
+from keras import backend as keras_backend
+from keras.src.layers import Input, ConvLSTM1D, Dense, Dropout, RepeatVector, Reshape, MaxPooling2D, MaxPooling1D, BatchNormalization, TimeDistributed
+from keras.src.callbacks import LambdaCallback, Callback
+from keras.src.optimizers import Adam
+from keras.src.losses import Huber
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import RobustScaler
 from matplotlib import pyplot
@@ -34,10 +34,10 @@ class DeepLearning():
         self.predictor = predictor
         self.model_validation_split = 0.1
         self.predictor_scaler = RobustScaler()
-        self.performance_dir = "analytics\\model_artifacts\\performance.csv"
-        self.model_config_dir = "analytics\\model_artifacts\\TA_model_config.json"
-        self.trained_model_dir = "analytics\\model_artifacts\\archive\\TA_model.keras"
-        self.evaluation_plot_dir = "analytics\\model_artifacts\\evaluation_plot.png"
+        self.performance_dir = "insights\\model_artifacts\\performance.csv"
+        self.model_config_dir = "insights\\model_artifacts\\TA_model_config.json"
+        self.trained_model_dir = "insights\\model_artifacts\\archive\\TA_model.keras"
+        self.evaluation_plot_dir = "insights\\model_artifacts\\evaluation_plot.png"
 
     def generate_new_model(self):
         self.prepare_data()
@@ -50,7 +50,7 @@ class DeepLearning():
         self.prepare_data()
         with open(self.model_config_dir, 'r') as json_file:
             json_object = json.load(json_file)
-            self.model = model_from_json(json.dumps(json_object))
+            # self.model = model_from_json(json.dumps(json_object))
         self.fit_model()
         self.evaluate_model()
 
@@ -59,10 +59,10 @@ class DeepLearning():
         self.model = keras_saving.load_model(self.trained_model_dir)
         self.evaluate_model()
 
-    def prepare_data(self, test_size=0.2, window_size=5):
+    def prepare_data(self, test_size=0.5, window_size=5):
         """
         Prepare data for model training and testing.
-        :param test_size: The ratio of test observations to be used in self evaluating the model
+        :param test_size: The ratio of test observations to be used in self evaluating the model. Default to 0.5 to ensure stateful ConvLSTM1d model
         :param window_size: The number of observations in each window
         """
         # extracting predictor variable and as numpy array 
@@ -76,21 +76,21 @@ class DeepLearning():
             data_rolling.append(data_normalized[i-window_size:i])
             predictor_rolling.append(predictor_normalized[i])
 
-        # set batch size based on rolling length
-        # self.batch_size = max([i for i in range(1, len(predictor_rolling)) if len(predictor_rolling) % i == 0])
-
         data_rolling = numpy.array(data_rolling)
         predictor_rolling = numpy.array(predictor_rolling)
-        print(f"POST ROLLING, data_rolling: {data_rolling.shape}, predictor_rolling: {predictor_rolling.shape}\n")
         # reshape(number of batches, number of observations in each batch, number of features, number of channels)
         predictor_rolling = predictor_rolling.reshape(-1, 1, 1, 1)
         data_rolling = data_rolling.reshape(-1, data_rolling.shape[1], data_rolling.shape[2], 1)
-        print(f"POST RESHAPING, data_rolling: {data_rolling.shape}, predictor_rolling: {predictor_rolling.shape}\n")
-        # desired_length = window_size * (len(data_rolling) // window_size)
+        # Making batch count even, to allow 0.5 split to work for stateful=true
+        if data_rolling.shape[0] % 2 != 0:
+            data_rolling = data_rolling[:-1]
+            predictor_rolling = predictor_rolling[:-1]
+        # Although probably unlikely, padding to ensure batch length equal
         data_rolling = pad_sequences(data_rolling, maxlen=max([len(seq) for seq in data_rolling]), padding='post', dtype='float32')
         predictor_rolling = pad_sequences(predictor_rolling, maxlen=max(len(seq) for seq in predictor_rolling), padding='post', dtype='float32')
         self.train_data, self.test_data, self.train_predictor, self.test_predictor = train_test_split(data_rolling, predictor_rolling, test_size=test_size, shuffle=False)
         _logger.info(f"SHAPES :- Train data [{self.train_data.shape}] - Train predictor [{self.train_predictor.shape}] - Test data [{self.test_data.shape}] - Test predictor [{self.test_predictor.shape}]")
+
 
     def data_normalisation(self, data_array: numpy.ndarray, predictor_array: numpy.ndarray):
         """
@@ -114,45 +114,28 @@ class DeepLearning():
         """
         Compiles the multiple layers of the model together
         """
-        self.model_batch_size = math.floor((1-self.model_validation_split)*self.train_data.shape[0])
-        self.model_batch_size = self.train_data.shape[0]
-        print(f"THIS IS INPUT BATCH SIZEL {self.model_batch_size}")
-
         self.model = Sequential()
         self.model.add(Input(shape=(self.train_data.shape[1], self.train_data.shape[2], 1), batch_size=self.train_data.shape[0])) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>, <channel>=1). sample_size=none allows for flexible sample size. 1 as time series is only on 1 channel
                  
         self.model.add(Dense(64, activation='linear'))
-        # self.model.add(Reshape((self.train_data.shape[1], self.train_data.shape[2], 64)))  # Reshape to match ConvLSTM1D input shape
 
-        self.model.add(ConvLSTM1D(filters=300, kernel_size=20, activation='tanh', padding='same', return_sequences=True, go_backwards=False, stateful=False))
+        # In order for stateful=True to work, train and test data batch counts have to be the same. Ensure they are in data preparation
+        self.model.add(ConvLSTM1D(filters=200, kernel_size=20, activation='tanh', padding='same', return_sequences=True, stateful=True))
         self.model.add(BatchNormalization())
-        self.model.add(ConvLSTM1D(filters=300, kernel_size=20, padding='same', activation='tanh', go_backwards=False, stateful=False))
+        self.model.add(ConvLSTM1D(filters=200, kernel_size=20, activation='tanh', padding='same', go_backwards=False, stateful=False))
 
         # Max pooling layer to reduce spatial dimensions, due to padding in ConvLSTM1D
-        self.model.add(MaxPooling1D(pool_size=(self.train_data.shape[1],), strides=6))
+        self.model.add(MaxPooling1D(pool_size=(self.train_data.shape[1],), strides=self.train_data.shape[0]))
         self.model.add(Dropout(0.5))
 
         self.model.add(Dense(64, activation='linear'))
         self.model.add(Dense(1, activation='linear'))
 
-        self.model.compile(optimizer=Adam(learning_rate=0.001), loss="mape")
+        self.model.compile(optimizer=Adam(learning_rate=0.001), loss=Huber())
         self.model.summary() 
-        # Saving model configurations to jsoninput = 
+        # Saving model configurations to json
         with open(self.model_config_dir, 'w') as json_file:
             json_file.write(self.model.to_json())
-
-    class ResetStatesCallback(Callback):
-        def on_epoch_begin(self, epoch, logs):
-            self.model.reset_states()
-
-    def reset_states(self, epoch, logs):
-        # Iterate through the layers and reset their states if they have a reset_states() method
-        for layer in self.model.layers:
-            if hasattr(layer, 'reset_states'):
-                layer.reset_states()
-                _logger.info(f"Ressetting states after epoch[{epoch}] in layer: {layer}")
-        # convlstm_layer = self.model.layers[1]
-        # convlstm_layer.reset_states()
 
     def fit_model(self, compiled_model=None):
         """
@@ -162,9 +145,11 @@ class DeepLearning():
         """
         if not compiled_model:
             compiled_model = self.model
-        reset_states_callback = LambdaCallback(on_epoch_end=self.reset_states)
-        # print([seq for seq in self.train_predictor])
-        compiled_model.fit(self.train_data, self.train_predictor, shuffle=False, batch_size=self.model_batch_size, callbacks=[reset_states_callback]) #Batch size must be specified here to avoid issues with input shape mismatches. Potentially 64?
+        for i in range(5):
+            compiled_model.fit(self.train_data, self.train_predictor, epochs=1, shuffle=False, batch_size=self.train_data.shape[0]) #Batch size must be specified here to avoid issues with input shape mismatches. Potentially 64?
+            for layer in self.model.layers:
+                if hasattr(layer, 'reset_states'):
+                    layer.reset_states()
         compiled_model.save(self.trained_model_dir)
 
     def evaluate_model(self):
@@ -174,7 +159,7 @@ class DeepLearning():
         _logger.info(f"Predicting on model to data of shape: {self.test_data.shape}, and predictor of shape: {self.test_predictor.shape}")
         self.loss_evaluation = self.model.evaluate(self.test_data, self.test_predictor, verbose=2)
         test_prediction = self.model.predict(self.test_data)
-        _logger.info(f"Generating predictions of shape: {test_prediction.shape}")
+        _logger.info(f"Expecting predictions of shape: {test_prediction.shape}")
         test_predictor_denormalised = self.prediction_denormalisation(self.test_predictor)
         test_prediction_denormalised = self.prediction_denormalisation(test_prediction)
         evaluation_result = pandas.DataFrame({'True Values': pandas.Series(test_predictor_denormalised), 'Predicted Values': pandas.Series(test_prediction_denormalised), 'Loss Evaluation': pandas.Series(self.loss_evaluation), 'Features': pandas.Series(self.data.columns)})      

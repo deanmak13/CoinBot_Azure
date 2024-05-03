@@ -39,7 +39,7 @@ function processMessages(load){
 function activateAnalyticsTransceiver(){
     // Spawning Analytics child process 
     const python = path.join(__dirname.toString(), '..', 'venv', 'Scripts', 'python.exe');
-    const technicalAnalyticsScript = path.join(__dirname.toString(), '..', 'analytics', 'transceiver.py');
+    const technicalAnalyticsScript = path.join(__dirname.toString(), '..', 'insights', 'transceiver.py');
     const analyticsTransceiverProcess = spawn(python, [technicalAnalyticsScript]);
 
     // Initialise connection to Analytics process, and configure response handling and child process logging
@@ -51,7 +51,7 @@ function activateAnalyticsTransceiver(){
 
 function analyseHistoricalData(){
     let analyticsSocket = activateAnalyticsTransceiver();
-    coinbase.getProductCandles("BTC-USD", 300, requests=2, 436).then(
+    coinbase.getProductCandles("BTC-USD", 300, requests=1, 60).then(
         candlesData => sendLoad({message: JSON.stringify(candlesData), id: 13}, analyticsSocket)
     );
 }
