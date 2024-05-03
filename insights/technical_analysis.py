@@ -145,11 +145,7 @@ class DeepLearning():
         """
         if not compiled_model:
             compiled_model = self.model
-        for i in range(5):
-            compiled_model.fit(self.train_data, self.train_predictor, epochs=1, shuffle=False, batch_size=self.train_data.shape[0]) #Batch size must be specified here to avoid issues with input shape mismatches. Potentially 64?
-            for layer in self.model.layers:
-                if hasattr(layer, 'reset_states'):
-                    layer.reset_states()
+        compiled_model.fit(self.train_data, self.train_predictor, shuffle=False, batch_size=self.train_data.shape[0]) #Batch size must be specified here to avoid issues with input shape mismatches. Potentially 64?
         compiled_model.save(self.trained_model_dir)
 
     def evaluate_model(self):
@@ -181,7 +177,6 @@ class DeepLearning():
         pyplot.title(f"Price Prediction Evaluation (Loss eval : {dataframe['Loss Evaluation'][0]} )")  # Title of the plot
         pyplot.legend()  # Show legend
         pyplot.grid(True)  # Show grid
-
         # Save plot to an image file (e.g., PNG format)
         pyplot.savefig(self.evaluation_plot_dir)
         

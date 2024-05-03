@@ -142,4 +142,4 @@ venv/Lib/
 # models
 .h5
 .keras
-insights/model_artifacts/archive/
+insights/artifacts/model_artifacts/archive/
