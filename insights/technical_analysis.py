@@ -17,7 +17,7 @@ from sklearn.preprocessing import RobustScaler
 from matplotlib import pyplot
 from utils import get_logger
 
-_logger = get_logger(logger_name="Analytics/Technical Analysis")
+_logger = get_logger(logger_name="Insights")
 
 def perform_technical_analysis(historical_candle_data):
     ### Add additional features to candle data (feature engineering)
@@ -33,7 +33,6 @@ class DeepLearning():
         self.data = data
         self.predictor = predictor
         self.model_validation_split = 0.1
-        self.predictor_scaler = RobustScaler()
         self.performance_dir = "insights\\artifacts\\model_artifacts\\performance.csv"
         self.model_config_dir = "insights\\artifacts\\model_artifacts\\TA_model_config.json"
         self.trained_model_dir = "insights\\artifacts\\model_artifacts\\archive\\TA_model.keras"
@@ -69,6 +68,12 @@ class DeepLearning():
         predictor = self.data.pop(self.predictor).to_numpy()
         data = self.data.to_numpy()
         data_normalized, predictor_normalized = self.data_normalisation(data_array=data, predictor_array=predictor)
+
+        # making window_size result in max 32 batches, due to  TODO: keep investigating if this necessary
+        batch_count = (data_normalized.shape[0] - window_size) // 2
+        if batch_count > 32:
+            window_size = data_normalized.shape[0] - 64
+            _logger.info(f"Limiting batch size to 32, with adjusted window size {window_size} due to stateful=True batch count limitation.")
         
         data_rolling, predictor_rolling = [], []
         # Creating rolling window in data. Hence, every 5 data values will point to every 5th predictor value
@@ -81,6 +86,7 @@ class DeepLearning():
         # reshape(number of batches, number of observations in each batch, number of features, number of channels)
         predictor_rolling = predictor_rolling.reshape(-1, 1, 1, 1)
         data_rolling = data_rolling.reshape(-1, data_rolling.shape[1], data_rolling.shape[2], 1)
+        _logger.info(f"Post rolling data shape {data_rolling.shape} and {predictor_rolling.shape}")
         # Making batch count even, to allow 0.5 split to work for stateful=true
         if data_rolling.shape[0] % 2 != 0:
             data_rolling = data_rolling[:-1]
@@ -98,7 +104,9 @@ class DeepLearning():
         :param data_array: the numpy array of data
         :param predictor_array: the numpy array of the predictor data
         """
-        predictor_normalized = self.predictor_scaler.fit_transform(predictor_array.reshape(-1, 1))
+        predictor_array = predictor_array.reshape(-1, 1)
+        self.predictor_transformer = RobustScaler().fit(predictor_array)
+        predictor_normalized = self.predictor_transformer.transform(predictor_array)
         data_normalized = RobustScaler().fit_transform(data_array)
         return data_normalized, predictor_normalized
 
@@ -108,7 +116,7 @@ class DeepLearning():
         :param prediction_array: the array of predicted values
         :return the denormalised predicted values
         """
-        return self.predictor_scaler.inverse_transform(prediction_array.reshape(1, -1)).flatten()
+        return self.predictor_transformer.inverse_transform(prediction_array.reshape(1, -1)).flatten()
 
     def model_compilation(self):
         """
@@ -117,19 +125,19 @@ class DeepLearning():
         self.model = Sequential()
         self.model.add(Input(shape=(self.train_data.shape[1], self.train_data.shape[2], 1), batch_size=self.train_data.shape[0])) # Input shape of (<sample_size/observations>=None, <time_steps>, <features>, <channel>=1). sample_size=none allows for flexible sample size. 1 as time series is only on 1 channel
                  
-        self.model.add(Dense(64, activation='linear'))
+        self.model.add(Dense(64, activation='elu'))
 
         # In order for stateful=True to work, train and test data batch counts have to be the same. Ensure they are in data preparation
-        self.model.add(ConvLSTM1D(filters=200, kernel_size=20, activation='tanh', padding='same', return_sequences=True, stateful=True))
+        self.model.add(ConvLSTM1D(filters=300, kernel_size=20, activation='elu', padding='same', return_sequences=True, stateful=True))
         self.model.add(BatchNormalization())
-        self.model.add(ConvLSTM1D(filters=200, kernel_size=20, activation='tanh', padding='same', go_backwards=False, stateful=False))
+        self.model.add(ConvLSTM1D(filters=200, kernel_size=15, activation='relu', padding='same', go_backwards=True, stateful=True))
 
         # Max pooling layer to reduce spatial dimensions, due to padding in ConvLSTM1D
-        self.model.add(MaxPooling1D(pool_size=(self.train_data.shape[1],), strides=self.train_data.shape[0]))
+        self.model.add(MaxPooling1D(pool_size=(self.train_data.shape[2],), strides=self.train_data.shape[0]))
         self.model.add(Dropout(0.5))
 
-        self.model.add(Dense(64, activation='linear'))
-        self.model.add(Dense(1, activation='linear'))
+        self.model.add(Dense(64, activation='relu'))
+        self.model.add(Dense(1, activation='relu'))
 
         self.model.compile(optimizer=Adam(learning_rate=0.001), loss=Huber())
         self.model.summary() 
@@ -231,9 +239,9 @@ class FeatureEngineering():
         self.initial_indicators_df.set_index('timestamp', inplace=True)
         # self.initial_indicators_df.bfill(inplace=True)
         self.initial_indicators_df.replace(0, numpy.nan, inplace=True)
-        self.initial_indicators_df.fillna(method='bfill', inplace=True)
+        self.initial_indicators_df.bfill(inplace=True)
 
-    def correlation_analysis(self, threshold=0.61):
+    def correlation_analysis(self, percentile=80):
         """
         Performs correlation on the features and drops those above the defined threshold
         :param int threshold: the correlation threshold above which a column is dropped (default=0.61)
@@ -241,7 +249,9 @@ class FeatureEngineering():
         """
         correlation_matrix = self.initial_indicators_df.corr().abs()
         average_correlation = correlation_matrix.mean()
-        columns_to_remove = average_correlation[average_correlation >= threshold].index
+        dynamic_threshold = numpy.percentile(average_correlation, percentile)
+        print(f"This dynamic threshold: {dynamic_threshold}")
+        columns_to_remove = average_correlation[average_correlation >= dynamic_threshold].index
         columns_to_remove = columns_to_remove.drop('close', errors='ignore')
         selected_features = self.initial_indicators_df.drop(columns=columns_to_remove)
         _logger.info(f"Removing the following overcorrelating features: {columns_to_remove.to_list()}. Remaining predictive feature count: [{selected_features.shape[1] - 1}]")
