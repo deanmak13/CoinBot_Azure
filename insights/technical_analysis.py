@@ -32,7 +32,6 @@ class DeepLearning():
         _logger.info("Deep Learning Initiated...")
         self.data = data
         self.predictor = predictor
-        self.model_validation_split = 0.1
         self.performance_dir = "insights\\artifacts\\model_artifacts\\performance.csv"
         self.model_config_dir = "insights\\artifacts\\model_artifacts\\TA_model_config.json"
         self.trained_model_dir = "insights\\artifacts\\model_artifacts\\archive\\TA_model.keras"
@@ -149,7 +148,6 @@ class DeepLearning():
         """
         Fits the training data to the model, and saves the 
         :param compiled_model: The model to fit the training data to
-        :param model_validation_split: the test and train data the model will use for self evaluations. The ratio representing the amount of test data
         """
         if not compiled_model:
             compiled_model = self.model
@@ -250,11 +248,10 @@ class FeatureEngineering():
         correlation_matrix = self.initial_indicators_df.corr().abs()
         average_correlation = correlation_matrix.mean()
         dynamic_threshold = numpy.percentile(average_correlation, percentile)
-        print(f"This dynamic threshold: {dynamic_threshold}")
         columns_to_remove = average_correlation[average_correlation >= dynamic_threshold].index
         columns_to_remove = columns_to_remove.drop('close', errors='ignore')
         selected_features = self.initial_indicators_df.drop(columns=columns_to_remove)
-        _logger.info(f"Removing the following overcorrelating features: {columns_to_remove.to_list()}. Remaining predictive feature count: [{selected_features.shape[1] - 1}]")
+        _logger.info(f"Using  correlation threshold of {dynamic_threshold}, removing the following overcorrelating features: {columns_to_remove.to_list()}. Remaining predictive feature count: [{selected_features.shape[1] - 1}]")
         return selected_features        
 
     def calculate_overlay_studies(self, timeperiod = 2):
