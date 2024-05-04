@@ -2,7 +2,10 @@ const axios = require('axios');
 const qs = require('qs');
 const { SecretClient } = require("@azure/keyvault-secrets");
 const { ClientSecretCredential } = require("@azure/identity");
+const utils = require('./utils');
 require('dotenv').config();
+
+let logger = utils.getLogger();
 
 /**
  * Retrieves API authentication credentials from Azure Key Vault.
@@ -65,13 +68,25 @@ function configuration(url, httpMethod, queryParametersDict){
  *    close - closing price (last trade) in the bucket interval
  *    volume - volume of trading activity during the bucket interval
  */
-async function getProductCandles(productID, granularity){
+async function getProductCandles(productID, granularity, requests=1, data_points_limit=0){
   let apiUrl = `https://api.exchange.coinbase.com/products/${productID}/candles`;
   let queryDict = {granularity: granularity};
-  let config = configuration(apiUrl, 'get', queryDict);
   try {
-    let response = await axios(config);
-    return response.data;
+    let response_data = [];
+    for (let completed_requests = 0; completed_requests < requests; completed_requests++){
+      if (completed_requests > 0) {
+        queryDict['end'] = response_data[response_data.length - 1][0] - granularity;
+        queryDict['start'] = queryDict['end'] - (299 * granularity)
+      }
+
+      let config = configuration(apiUrl, 'get', queryDict);
+      let response = await axios(config);
+      response_data = response_data.concat(response.data);
+    }
+    if (0 < data_points_limit && data_points_limit < response_data.length){
+        response_data = response_data.slice(0, data_points_limit);}
+    logger.info("Retrieved %d Total Product Candle Data Points after %d requests", response_data.length, requests)
+    return response_data;
   } catch (error) {
     console.log(error);
   }

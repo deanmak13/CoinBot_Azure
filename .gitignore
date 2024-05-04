@@ -138,3 +138,8 @@ venv/Lib/
 
 # secret env variables file
 .env
+
+# models
+.h5
+.keras
+insights/artifacts/model_artifacts/archive/

@@ -13,7 +13,7 @@ function getLogger(){
         },
         categories: {default: {appenders: ['console'], level: 'info'}, ['MainService']: {appenders: ['console'], level: 'info'}}
     });
-    return log4js.getLogger('MainService');
+    return log4js.getLogger('Core');
 }
 
 module.exports = {getLogger}

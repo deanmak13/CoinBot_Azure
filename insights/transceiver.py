@@ -9,7 +9,7 @@ from utils import get_logger
 from time import sleep
 from technical_analysis import perform_technical_analysis
 
-_logger = get_logger(logger_name="Analytics/Technical Analysis")
+_logger = get_logger(logger_name="Insights")
 
 communicationFileAddress = "ipc:///config/communication.icp"
 
