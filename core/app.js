@@ -21,4 +21,4 @@ let logger = utils.getLogger();
 
 // app.listen(port, initiate);
 
-controller.analyseHistoricalData();
+controller.initialiseAnalytics();
