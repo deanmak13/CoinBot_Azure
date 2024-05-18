@@ -19,7 +19,7 @@ from utils import get_logger
 
 _logger = get_logger(logger_name="Insights")
 
-def perform_technical_analysis(historical_candle_data):
+def perform_historical_technical_analysis(historical_candle_data):
     ### Add additional features to candle data (feature engineering)
     candle_data = numpy.array(historical_candle_data)
     features = FeatureEngineering(candle_data).features

@@ -5,27 +5,26 @@ const coinbase = require("./coinbase_wrapper");
 const utils = require('./utils');
 
 const grpc = require('@grpc/grpc-js');
-const { HistoricalDataServiceService } = require('./protos/historical_grpc_pb');
-const { ProductCandleRequest, ProductCandleResponse } = require('./protos/historical_pb');
+const { ProductsDataServiceService } = require('./protos/products_grpc_pb');
+const { ProductCandleRequest, ProductCandleResponse } = require('./protos/products_pb');
 
 let logger = utils.getLogger();
+
+const communicationChannel = "127.0.0.1:13130"
 
 function activateAnalyticsClient(){
     // Spawning Analytics child process 
     const python = path.join(__dirname.toString(), '..', 'venv', 'Scripts', 'python.exe');
-    const technicalAnalyticsScript = path.join(__dirname.toString(), '..', 'insights', 'transceiver.py');
+    const technicalAnalyticsScript = path.join(__dirname.toString(), '..', 'insights', 'insights_grpc_client_impl.py');
     const analyticsTransceiverProcess = spawn(python, [technicalAnalyticsScript]);
 
-    // Initialise connection to Analytics process, and configure response handling and child process logging
-    // const analyticsSocket = openAnalyticsSocket();
-    // analyticsSocket.on("data", processMessages);
+    // Initialise Insights, configure response handling and child process logging
     analyticsTransceiverProcess.stdout.on('data', (data) => {console.log("%s", data)} );
     logger.info("Activated Analytics Client");
-    // return analyticsSocket;
 }
 
 function getProductCandles(call, callback){
-    logger.info("Getting Product Candles");
+    logger.info("Getting Product Candles from API wrapper");
     const request = call.request;
 
     coinbase.getProductCandles(request).then(
@@ -41,17 +40,16 @@ function initialiseAnalytics(){
     logger.info("Initialising Analytics");
     activateAnalyticsClient();
     const server = new grpc.Server();
-    server.addService(HistoricalDataServiceService, {
+    server.addService(ProductsDataServiceService, {
         getProductCandles: getProductCandles
     });
 
-    let socketPath = "127.0.0.1:13130"
-    server.bindAsync(socketPath, grpc.ServerCredentials.createInsecure(), (err, port) => {
+    server.bindAsync(communicationChannel, grpc.ServerCredentials.createInsecure(), (err, port) => {
         if (err) {
-            console.error(`Failed to bind to Unix domain socket ${socketPath}: ${err}`);
+            console.error(`Failed to bind to Unix domain socket ${communicationChannel}: ${err}`);
             process.exit(1);
         }
-        console.log(`gRPC server running on Unix domain socket ${socketPath}`);
+        console.log(`gRPC server running on Unix domain socket ${communicationChannel}`);
     });
 }
 

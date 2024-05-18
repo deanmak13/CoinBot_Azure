@@ -4,7 +4,7 @@ const { SecretClient } = require("@azure/keyvault-secrets");
 const { ClientSecretCredential } = require("@azure/identity");
 const utils = require('./utils');
 require('dotenv').config();
-const { ProductCandleRequest, ProductCandleResponse } = require('./protos/historical_pb');
+const { ProductCandleRequest, ProductCandleResponse } = require('./protos/products_pb');
 
 let logger = utils.getLogger();
 

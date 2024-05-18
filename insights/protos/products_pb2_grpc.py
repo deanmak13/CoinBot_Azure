@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import protos.historical_pb2 as historical__pb2
+import protos.products_pb2 as products__pb2
 
 GRPC_GENERATED_VERSION = '1.63.0'
 GRPC_VERSION = grpc.__version__
@@ -20,7 +20,7 @@ except ImportError:
 if _version_not_supported:
     warnings.warn(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + f' but the generated code in historical_pb2_grpc.py depends on'
+        + f' but the generated code in products_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -30,7 +30,7 @@ if _version_not_supported:
     )
 
 
-class HistoricalDataServiceStub(object):
+class ProductsDataServiceStub(object):
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -40,13 +40,13 @@ class HistoricalDataServiceStub(object):
             channel: A grpc.Channel.
         """
         self.GetProductCandles = channel.unary_unary(
-                '/HistoricalDataService/GetProductCandles',
-                request_serializer=historical__pb2.ProductCandleRequest.SerializeToString,
-                response_deserializer=historical__pb2.ProductCandleResponse.FromString,
+                '/ProductsDataService/GetProductCandles',
+                request_serializer=products__pb2.ProductCandleRequest.SerializeToString,
+                response_deserializer=products__pb2.ProductCandleResponse.FromString,
                 _registered_method=True)
 
 
-class HistoricalDataServiceServicer(object):
+class ProductsDataServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def GetProductCandles(self, request, context):
@@ -56,21 +56,21 @@ class HistoricalDataServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
 
-def add_HistoricalDataServiceServicer_to_server(servicer, server):
+def add_ProductsDataServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'GetProductCandles': grpc.unary_unary_rpc_method_handler(
                     servicer.GetProductCandles,
-                    request_deserializer=historical__pb2.ProductCandleRequest.FromString,
-                    response_serializer=historical__pb2.ProductCandleResponse.SerializeToString,
+                    request_deserializer=products__pb2.ProductCandleRequest.FromString,
+                    response_serializer=products__pb2.ProductCandleResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'HistoricalDataService', rpc_method_handlers)
+            'ProductsDataService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
 
 
  # This class is part of an EXPERIMENTAL API.
-class HistoricalDataService(object):
+class ProductsDataService(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
@@ -87,9 +87,9 @@ class HistoricalDataService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/HistoricalDataService/GetProductCandles',
-            historical__pb2.ProductCandleRequest.SerializeToString,
-            historical__pb2.ProductCandleResponse.FromString,
+            '/ProductsDataService/GetProductCandles',
+            products__pb2.ProductCandleRequest.SerializeToString,
+            products__pb2.ProductCandleResponse.FromString,
             options,
             channel_credentials,
             insecure,

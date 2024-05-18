@@ -1,4 +1,4 @@
-const controller = require('./controller');
+const controller = require('./core_grpc_server_impl');
 const utils = require('./utils');
 
 let logger = utils.getLogger();

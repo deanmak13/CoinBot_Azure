@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-service HistoricalDataService{
+service ProductsDataService{
     rpc GetProductCandles(ProductCandleRequest) returns(ProductCandleResponse);
 }
 
@@ -16,15 +16,15 @@ message ProductCandleResponse{
         // bucket start time
         int32 time = 1;
         // lowest price during the bucket interval
-        int32 low = 2;
+        double low = 2;
         // highest price during the bucket interval
-        int32 high = 3;
+        double high = 3;
         // opening price (first trade) in the bucket interval
-        int32 open = 4;
+        double open = 4;
         // closing price (last trade) in the bucket interval
-        int32 close = 5;
+        double close = 5;
         // volume of trading activity during the bucket interval
-        int32 volume = 6;
+        double volume = 6;
     }
     repeated ProductCandle product_candles = 1;
 }
