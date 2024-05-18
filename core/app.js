@@ -1,4 +1,4 @@
-const controller = require('./controller');
+const controller = require('./core_grpc_server_impl');
 const utils = require('./utils');
 
 let logger = utils.getLogger();
@@ -21,4 +21,4 @@ let logger = utils.getLogger();
 
 // app.listen(port, initiate);
 
-controller.analyseHistoricalData();
+controller.initialiseAnalytics();
