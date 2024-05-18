@@ -23,7 +23,6 @@ async def get_historical_product_data():
         request.data_points_limit = 10        
         _logger.info("RPC made to get product candles.")
         response = client.GetProductCandles(request)
-        _logger.info(response)
         return response
 
 try:
