@@ -10,8 +10,6 @@ const { ProductCandleRequest, ProductCandleResponse } = require('./protos/produc
 
 let logger = utils.getLogger();
 
-const communicationChannel = "127.0.0.1:13130"
-
 function activateAnalyticsClient(){
     // Spawning Analytics child process 
     const python = path.join(__dirname.toString(), '..', 'venv', 'Scripts', 'python.exe');
@@ -44,12 +42,12 @@ function initialiseAnalytics(){
         getProductCandles: getProductCandles
     });
 
-    server.bindAsync(communicationChannel, grpc.ServerCredentials.createInsecure(), (err, port) => {
+    server.bindAsync(utils.GRPC_COMMUNICATION_CHANNEL, grpc.ServerCredentials.createInsecure(), (err, port) => {
         if (err) {
-            console.error(`Failed to bind to Unix domain socket ${communicationChannel}: ${err}`);
+            console.error(`Failed to bind to Unix domain socket ${utils.GRPC_COMMUNICATION_CHANNEL}: ${err}`);
             process.exit(1);
         }
-        console.log(`gRPC server running on Unix domain socket ${communicationChannel}`);
+        console.log(`gRPC server running on Unix domain socket ${utils.GRPC_COMMUNICATION_CHANNEL}`);
     });
 }
 

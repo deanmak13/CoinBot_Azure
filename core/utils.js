@@ -1,4 +1,6 @@
 const log4js = require("log4js");
+const fs = require('fs');
+const yaml = require('js-yaml');
 
 function getLogger(){
     log4js.configure({
@@ -16,4 +18,12 @@ function getLogger(){
     return log4js.getLogger('Core');
 }
 
-module.exports = {getLogger}
+function getConfig(configName, configFile) {
+    const config = yaml.load(fs.readFileSync(`./config/${configFile}`, 'utf8'));
+    return config[configName];
+}
+
+const GRPC_COMMUNICATION_CHANNEL = getConfig('communication_channel', 'ipc.yaml');
+
+
+module.exports = {getLogger, GRPC_COMMUNICATION_CHANNEL}

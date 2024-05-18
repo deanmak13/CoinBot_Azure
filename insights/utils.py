@@ -1,5 +1,6 @@
 import logging
 import sys
+import yaml
 
 loggers = []
 
@@ -19,3 +20,10 @@ def get_logger(logger_name: str):
         if logger.name == logger_name:
             return logger
     return setup_logger(logger_name)
+
+def get_config(config_name, config_file):
+    with open("./config/" + config_file) as file:
+        config = yaml.load(file, Loader=yaml.FullLoader)
+        return config[config_name]
+
+GRPC_COMMUNICATION_CHANNEL = get_config('communication_channel', 'ipc.yaml')
