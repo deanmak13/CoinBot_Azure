@@ -4,7 +4,7 @@ const { SecretClient } = require("@azure/keyvault-secrets");
 const { ClientSecretCredential } = require("@azure/identity");
 const utils = require('./utils');
 require('dotenv').config();
-const { ProductCandleRequest, ProductCandleResponse } = require('./protos/products_pb');
+const { ProductCandleRequest, ProductCandleResponse } = require('./grpc/products_pb');
 
 let logger = utils.getLogger();
 
@@ -91,7 +91,8 @@ async function getProductCandles(productCandleRequest){
     if (0 < data_points_limit && data_points_limit < response_data.length){
         response_data = response_data.slice(0, data_points_limit);}
     logger.info("Wrapper Retrieved %d Total Product Candle Data Points after %d requests", response_data.length, requests)
-    return response_data;
+    let productCandles = new ProductCandleResponse().setProductCandlesList(response_data);
+    return productCandles;
   } catch (error) {
     console.log(error);
   }
