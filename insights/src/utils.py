@@ -26,4 +26,4 @@ def get_config(config_name, config_file):
         config = yaml.load(file, Loader=yaml.FullLoader)
         return config[config_name]
 
-GRPC_COMMUNICATION_CHANNEL = get_config('communication_channel', 'ipc.yaml')
+GRPC_COMMUNICATION_CHANNEL = get_config('communication_channel', 'grpc.yaml')

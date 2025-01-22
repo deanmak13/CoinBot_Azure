@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package coinbase.v1;
+
+service ProductsDataService{
+    rpc GetProductCandles(ProductCandleRequest) returns(ProductCandleResponse);
+}
+
+message ProductCandle{
+    // product id
+    string product_id = 1;
+    // bucket start time
+    int32 time = 2;
+    // lowest price during the bucket interval
+    double low = 3;
+    // highest price during the bucket interval
+    double high = 4;
+    // opening price (first trade) in the bucket interval
+    double open = 5;
+    // closing price (last trade) in the bucket interval
+    double close = 6;
+    // volume of trading activity during the bucket interval
+    double volume = 7;
+}
+
+message ProductCandleRequest{
+    repeated string product_id = 1;
+    int32 granularity = 2;
+    int32 requests = 3;
+    int32 data_points_limit = 4;
+}
+
+message ProductCandleResponse{
+    repeated ProductCandle product_candles = 1;
+}

@@ -23,7 +23,7 @@ function loadYamlConfig(configName, configFile) {
     return config[configName];
 }
 
-const GRPC_COMMUNICATION_CHANNEL = loadYamlConfig('communication_channel', 'ipc.yaml');
+const GRPC_COMMUNICATION_CHANNEL = loadYamlConfig('communication_channel', 'grpc.yaml');
 
 
-module.exports = {getLogger, GRPC_COMMUNICATION_CHANNEL}
+module.exports = {loadYamlConfig, getLogger, GRPC_COMMUNICATION_CHANNEL}

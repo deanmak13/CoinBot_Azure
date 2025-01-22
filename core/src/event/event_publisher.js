@@ -1,7 +1,10 @@
 const { EventGridPublisherClient, AzureKeyCredential } = require("@azure/eventgrid");
+const utils = require("../utils");
 
 const endpoint = "<your-event-grid-topic-endpoint>";
 const apiKey = "<your-access-key>";
+
+let logger = utils.getLogger();
 
 const EventGridClientSingleton = (() => {
     let instance;
@@ -26,14 +29,14 @@ function createEvent(id, type, data){
  return {id: id, eventType: type, data: data, dataVersion: "1.0", subject: "Subject", eventTime: new Date().toISOString()}
 };
 
-
-
 async function publishEvent(event) {
     const client = EventGridClientSingleton.getInstance();
     try { 
-        await client.sendEvent(event); 
-        console.log("Event published successfully."); 
+        await client.sendEvent(event);
+        logger.info("{} event published successfully.", event["eventType"]); 
     } catch (error) {
-        console.error("Error publishing event:", error);
+        logger.error("{} error publishing event: {}", event["eventType"], error);
     }
 }
+
+module.exports = {createEvent, publishEvent}
