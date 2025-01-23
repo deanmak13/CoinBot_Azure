@@ -19,7 +19,9 @@ function getLogger(){
 }
 
 function loadYamlConfig(configName, configFile) {
-    const config = yaml.load(fs.readFileSync(`./config/${configFile}`, 'utf8'));
+    // Check if running inside Docker by reading an environment variable
+    const sharedConfigDir = process.env.SHARED_DIR || './config';  // default to local for testing
+    const config = yaml.load(fs.readFileSync(`${sharedConfigDir}/${configFile}`, 'utf8'));
     return config[configName];
 }
 
