@@ -1,41 +1,41 @@
 const { EventGridPublisherClient, AzureKeyCredential } = require("@azure/eventgrid");
+const { DefaultAzureCredential } = require("@azure/identity");
 const utils = require("../utils");
-
-const endpoint = "<your-event-grid-topic-endpoint>";
-const apiKey = "<your-access-key>";
+require("dotenv").config();
 
 let logger = utils.getLogger();
 
-const EventGridClientSingleton = (() => {
-    let instance;
+const EventGridClientFactory = (() => {
+    let clients = {};
+    let eventSchema = "EventGrid"
   
-    const createInstance = () => {
-      const endpoint = "https://<your-eventgrid-endpoint>.eventgrid.azure.net";
-      const apiKey = "<your-api-key>";
-      return new EventGridPublisherClient(endpoint, "EventGridSchema", new AzureKeyCredential(apiKey));
+    const createInstance = (endpoint) => {
+      logger.info(`HERE IS CLI ID: ${process.env.AZURE_CLIENT_ID}`)
+      return new EventGridPublisherClient(endpoint, eventSchema, new DefaultAzureCredential());
     };
   
     return {
-      getInstance: () => {
-        if (!instance) {
-          instance = createInstance();
+      getClient: (dataType) => {
+        const endpoint = process.env.EVENT_GRID_CANDLES_SUB_ENDPOINT;
+        if (!clients[dataType]) {
+          clients[dataType] = createInstance(endpoint);
         }
-        return instance;
+        return clients[dataType];
       },
     };
 })();
 
 function createEvent(id, type, data){
- return {id: id, eventType: type, data: data, dataVersion: "1.0", subject: "Subject", eventTime: new Date().toISOString()}
+ return {id: `${id}`, eventType: type, data: data, dataVersion: "1.0", subject: "Subject", eventTime: new Date().toISOString()}
 };
 
 async function publishEvent(event) {
-    const client = EventGridClientSingleton.getInstance();
+    const client = EventGridClientFactory.getClient("candle");
     try { 
-        await client.sendEvent(event);
-        logger.info("{} event published successfully.", event["eventType"]); 
+        await client.send([event]);
+        logger.info(`${event["eventType"]} event published successfully.`); 
     } catch (error) {
-        logger.error("{} error publishing event: {}", event["eventType"], error);
+        logger.error(`${event["eventType"]} error publishing event: ${error}`);
     }
 }
 

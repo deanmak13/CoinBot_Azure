@@ -1,7 +1,6 @@
 import logging
 import sys
 import yaml
-import os
 
 loggers = []
 
@@ -26,9 +25,7 @@ def get_logger(logger_name: str):
 
 
 def get_config(config_name, config_file):
-    # Get the shared directory path from an environment variable, or default to local for testing
-    shared_config_dir = os.getenv('SHARED_DIR', './config')  # Default to local if not in Docker
-    with open(f"{shared_config_dir}/{config_file}") as file:
+    with open(f"./config/{config_file}") as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
         return config[config_name]
 

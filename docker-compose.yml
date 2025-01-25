@@ -2,26 +2,15 @@ version: '3.8'
 services:
   core:
     build:
-      context: ./core
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./core/Dockerfile
     image: coinbot-core
     ports:
       - "3000:3000"
-    environment:
-      - SHARED_DIR=/app/shared
-    volumes:
-      - ./config:/app/shared
   insights:
     build:
-      context: ./insights
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./insights/Dockerfile
     image: coinbot-insights
     ports:
       - "5000:5000"
-    environment:
-      - SHARED_DIR=/app/shared
-    volumes:
-      - ./config:/app/shared
-
-volumes:
-  shared-files:

@@ -4,5 +4,4 @@ candles:
     - "BTC-USD"
   event_type: "productCandleData"
   subscription_name: "product-candle-data"
-  event_grid_endpoint: /eventgrid/candles
-  endpoint: "https://insights.azurewebsites.net/candles"
+  event_grid_endpoint: /subscribe/candles
