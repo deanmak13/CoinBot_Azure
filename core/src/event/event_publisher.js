@@ -1,5 +1,5 @@
 const { EventGridPublisherClient, AzureKeyCredential } = require("@azure/eventgrid");
-const { DefaultAzureCredential } = require("@azure/identity");
+const { DefaultAzureCredential, EnvironmentCredential } = require("@azure/identity");
 const utils = require("../utils");
 require("dotenv").config();
 
@@ -10,13 +10,12 @@ const EventGridClientFactory = (() => {
     let eventSchema = "EventGrid"
   
     const createInstance = (endpoint) => {
-      logger.info(`HERE IS CLI ID: ${process.env.AZURE_CLIENT_ID}`)
       return new EventGridPublisherClient(endpoint, eventSchema, new DefaultAzureCredential());
     };
   
     return {
       getClient: (dataType) => {
-        const endpoint = process.env.EVENT_GRID_CANDLES_SUB_ENDPOINT;
+        const endpoint = process.env.EVENT_GRID_TOPIC_URL;
         if (!clients[dataType]) {
           clients[dataType] = createInstance(endpoint);
         }
@@ -25,8 +24,8 @@ const EventGridClientFactory = (() => {
     };
 })();
 
-function createEvent(id, type, data){
- return {id: `${id}`, eventType: type, data: data, dataVersion: "1.0", subject: "Subject", eventTime: new Date().toISOString()}
+function createEvent(id, type, subject, data){
+ return {id: `${id}`, eventType: type, data: data, dataVersion: "1.0", subject: subject, eventTime: new Date().toISOString()}
 };
 
 async function publishEvent(event) {

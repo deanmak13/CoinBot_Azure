@@ -1,6 +1,7 @@
 const log4js = require("log4js");
 const fs = require('fs');
 const yaml = require('js-yaml');
+const path = require('path');
 
 function getLogger(){
     log4js.configure({
@@ -11,12 +12,22 @@ function getLogger(){
                     type: "pattern",
                     pattern: '%d{ISO8601} - %c - [%p] - %m'
                 }
+            },
+            file: {
+                type: 'file',
+                filename: path.join('../home/LogFiles', 'app.log'), // Adjust this path for Windows: 'D:\\home\\LogFiles\\app.log'
+                layout: {
+                    type: "pattern",
+                    pattern: '%d{ISO8601} - %c - [%p] - %m'
+                }
             }
         },
-        categories: {default: {appenders: ['console'], level: 'info'}, ['MainService']: {appenders: ['console'], level: 'info'}}
+        categories: {
+            default: { appenders: ['console', 'file'], level: 'info' },
+            MainService: { appenders: ['console', 'file'], level: 'info' }
+        }
     });
-    return log4js.getLogger('Core');
-}
+    return log4js.getLogger('Core');}
 
 function loadYamlConfig(configName, configFile) {
     const config = yaml.load(fs.readFileSync(`./config/${configFile}`, 'utf8'));

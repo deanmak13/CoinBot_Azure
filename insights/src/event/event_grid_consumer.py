@@ -1,8 +1,11 @@
-from utils import get_config
+import json
+from google.protobuf import json_format
 from flask import request, jsonify
+from grpc.gen.conbase_products_pb2 import ProductCandle
+from utils import get_config
 
 
-def handle_candle_events():
+def handle_events():
     try:
         validation_response = validate_event_grid(request)
         if validation_response:
@@ -11,7 +14,6 @@ def handle_candle_events():
         # Parse the Event Grid events
         events = request.get_json()
 
-        # Add your custom logic to handle the event data
         process_event(events)
 
         return jsonify({"message": "Events processed successfully."}), 200
@@ -32,12 +34,14 @@ def validate_event_grid(request):
 
 
 def process_event(events):
-    event_type = get_config("candles", "events.yaml")['event_grid.event_type']
+    candle_event_type = get_config("candles", "events.yaml")['event_grid.event_type']
 
-    # Placeholder for custom event processing logic
-    # Example: handle specific event types differently
     for event in events:  # Process each event if there are multiple
-        if event.get('eventType') == event_type:
-            print(f"Processing {event_type} event type...")
-        else:
-            print("Handling a general event...")
+        data_dict = json.loads(event.get('data'))
+        match event.get('eventType'):
+            case candle_event_type:
+                print(f"Processing {candle_event_type} event type. [Event I.D: {event.get('id')}] ")
+                product_candle = ProductCandle()
+                json_format.ParseDict(data_dict, product_candle)
+            case _:
+                print("Handling a general event...")

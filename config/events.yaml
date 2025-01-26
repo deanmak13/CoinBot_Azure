@@ -2,6 +2,5 @@
 candles:
   product_ids: 
     - "BTC-USD"
-  event_type: "productCandleData"
-  subscription_name: "product-candle-data"
-  event_grid_endpoint: /subscribe/candles
+  event_grid.event_type: "productCandleData"
+  event_grid.subscription_name: "product-candle-data"
