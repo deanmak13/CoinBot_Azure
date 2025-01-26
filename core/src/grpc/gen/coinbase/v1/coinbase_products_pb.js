@@ -120,7 +120,7 @@ proto.coinbase.v1.ProductCandle.prototype.toObject = function(opt_includeInstanc
 proto.coinbase.v1.ProductCandle.toObject = function(includeInstance, msg) {
   var f, obj = {
 productId: jspb.Message.getFieldWithDefault(msg, 1, ""),
-time: jspb.Message.getFieldWithDefault(msg, 2, 0),
+start: jspb.Message.getFieldWithDefault(msg, 2, 0),
 low: jspb.Message.getFloatingPointFieldWithDefault(msg, 3, 0.0),
 high: jspb.Message.getFloatingPointFieldWithDefault(msg, 4, 0.0),
 open: jspb.Message.getFloatingPointFieldWithDefault(msg, 5, 0.0),
@@ -168,7 +168,7 @@ proto.coinbase.v1.ProductCandle.deserializeBinaryFromReader = function(msg, read
       break;
     case 2:
       var value = /** @type {number} */ (reader.readInt32());
-      msg.setTime(value);
+      msg.setStart(value);
       break;
     case 3:
       var value = /** @type {number} */ (reader.readDouble());
@@ -226,7 +226,7 @@ proto.coinbase.v1.ProductCandle.serializeBinaryToWriter = function(message, writ
       f
     );
   }
-  f = message.getTime();
+  f = message.getStart();
   if (f !== 0) {
     writer.writeInt32(
       2,
@@ -290,10 +290,10 @@ proto.coinbase.v1.ProductCandle.prototype.setProductId = function(value) {
 
 
 /**
- * optional int32 time = 2;
+ * optional int32 start = 2;
  * @return {number}
  */
-proto.coinbase.v1.ProductCandle.prototype.getTime = function() {
+proto.coinbase.v1.ProductCandle.prototype.getStart = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
 };
 
@@ -302,7 +302,7 @@ proto.coinbase.v1.ProductCandle.prototype.getTime = function() {
  * @param {number} value
  * @return {!proto.coinbase.v1.ProductCandle} returns this
  */
-proto.coinbase.v1.ProductCandle.prototype.setTime = function(value) {
+proto.coinbase.v1.ProductCandle.prototype.setStart = function(value) {
   return jspb.Message.setProto3IntField(this, 2, value);
 };
 

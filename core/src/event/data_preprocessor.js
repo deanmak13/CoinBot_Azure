@@ -26,11 +26,25 @@ class DataPreprocessor{
         this.processedProductCandleDataCount = 0;
     }
 
-    processProductCandleData(productCandle){
+    mapCandleJSONToProductCandle(candle) {
+      let productCandle = new ProductCandle();
+      // Mapping and setting fields
+      productCandle.setProductId(candle.product_id);
+      productCandle.setStart(parseInt(candle.start));
+      productCandle.setLow(parseFloat(candle.low));
+      productCandle.setHigh(parseFloat(candle.high));
+      productCandle.setOpen(parseFloat(candle.open));
+      productCandle.setClose(parseFloat(candle.close));
+      productCandle.setVolume(parseFloat(candle.volume));
+      return productCandle;
+  }
+
+    processProductCandleData(candleJSON){
         let eventType = "productCandleData";
         let subject = "core/src/event/data_preprocessor/processProductCandleData";
-        let jsonData = productCandle.toObject();
-        let event = createEvent(this.processedProductCandleDataCount, eventType, subject, jsonData);
+        let productCandle = this.mapCandleJSONToProductCandle(candleJSON)
+        let serializedData = productCandle.serializeBinary();
+        let event = createEvent(this.processedProductCandleDataCount, eventType, subject, serializedData);
         logger.info(`Publishing ${eventType} Event: ` + JSON.stringify(event));
         publishEvent(event);
         this.processedProductCandleDataCount++;

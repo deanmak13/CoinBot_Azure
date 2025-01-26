@@ -10,7 +10,7 @@ message ProductCandle{
     // product id
     string product_id = 1;
     // bucket start time
-    int32 time = 2;
+    int32 start = 2;
     // lowest price during the bucket interval
     double low = 3;
     // highest price during the bucket interval

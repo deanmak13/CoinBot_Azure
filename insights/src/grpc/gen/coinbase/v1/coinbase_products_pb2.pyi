@@ -6,22 +6,22 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class ProductCandle(_message.Message):
-    __slots__ = ("product_id", "time", "low", "high", "open", "close", "volume")
+    __slots__ = ("product_id", "start", "low", "high", "open", "close", "volume")
     PRODUCT_ID_FIELD_NUMBER: _ClassVar[int]
-    TIME_FIELD_NUMBER: _ClassVar[int]
+    START_FIELD_NUMBER: _ClassVar[int]
     LOW_FIELD_NUMBER: _ClassVar[int]
     HIGH_FIELD_NUMBER: _ClassVar[int]
     OPEN_FIELD_NUMBER: _ClassVar[int]
     CLOSE_FIELD_NUMBER: _ClassVar[int]
     VOLUME_FIELD_NUMBER: _ClassVar[int]
     product_id: str
-    time: int
+    start: int
     low: float
     high: float
     open: float
     close: float
     volume: float
-    def __init__(self, product_id: _Optional[str] = ..., time: _Optional[int] = ..., low: _Optional[float] = ..., high: _Optional[float] = ..., open: _Optional[float] = ..., close: _Optional[float] = ..., volume: _Optional[float] = ...) -> None: ...
+    def __init__(self, product_id: _Optional[str] = ..., start: _Optional[int] = ..., low: _Optional[float] = ..., high: _Optional[float] = ..., open: _Optional[float] = ..., close: _Optional[float] = ..., volume: _Optional[float] = ...) -> None: ...
 
 class ProductCandleRequest(_message.Message):
     __slots__ = ("product_id", "granularity", "requests", "data_points_limit")

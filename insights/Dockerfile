@@ -17,7 +17,10 @@ RUN apt-get update && apt-get install -y build-essential
 
 # Install pip requirements
 COPY ./insights/requirements.txt .
-RUN python -m pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Add a separate line to install TA-Lib for Linux
+RUN pip install TA-Lib
 
 WORKDIR /app
 COPY ./insights /app

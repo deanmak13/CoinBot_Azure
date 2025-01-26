@@ -1,7 +1,8 @@
 import json
 from google.protobuf import json_format
 from flask import request, jsonify
-from grpc.gen.conbase_products_pb2 import ProductCandle
+from grpc.gen.coinbase.v1.coinbase_products_pb2 import ProductCandle
+from analytics.candle_technical_indicators import updateTechnicalIndicators
 from utils import get_config
 
 
@@ -34,14 +35,19 @@ def validate_event_grid(request):
 
 
 def process_event(events):
-    candle_event_type = get_config("candles", "events.yaml")['event_grid.event_type']
-
     for event in events:  # Process each event if there are multiple
-        data_dict = json.loads(event.get('data'))
+        data = event.get('data')
         match event.get('eventType'):
-            case candle_event_type:
-                print(f"Processing {candle_event_type} event type. [Event I.D: {event.get('id')}] ")
-                product_candle = ProductCandle()
-                json_format.ParseDict(data_dict, product_candle)
+            case EventType.CANDLE:
+                print(f"Processing {EventType.CANDLE} event type. [Event I.D: {event.get('id')}]")
+                if isinstance(data, list):
+                    data = bytes(data)
+                product_candle = ProductCandle().ParseFromString(data)
+                print(product_candle)
+                updateTechnicalIndicators(product_candle)
             case _:
                 print("Handling a general event...")
+
+
+class EventType:
+    CANDLE = get_config("candles", "events.yaml")['event_grid.event_type']

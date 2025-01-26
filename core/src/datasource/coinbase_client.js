@@ -112,7 +112,7 @@ class RealTimeMarketData{
             if (event.candles){
               logger.info("%s channel received %d data points", channel, event.candles.length)
               for (const candle of event.candles){
-                this.dataPreprocessor.processProductCandleData(new ProductCandle(candle));
+                this.dataPreprocessor.processProductCandleData(candle);
               }
             }
           }

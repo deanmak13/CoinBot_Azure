@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n#coinbase/v1/coinbase_products.proto\x12\x0b\x63oinbase.v1\"\xaa\x01\n\rProductCandle\x12\x1d\n\nproduct_id\x18\x01 \x01(\tR\tproductId\x12\x12\n\x04time\x18\x02 \x01(\x05R\x04time\x12\x10\n\x03low\x18\x03 \x01(\x01R\x03low\x12\x12\n\x04high\x18\x04 \x01(\x01R\x04high\x12\x12\n\x04open\x18\x05 \x01(\x01R\x04open\x12\x14\n\x05\x63lose\x18\x06 \x01(\x01R\x05\x63lose\x12\x16\n\x06volume\x18\x07 \x01(\x01R\x06volume\"\x9f\x01\n\x14ProductCandleRequest\x12\x1d\n\nproduct_id\x18\x01 \x03(\tR\tproductId\x12 \n\x0bgranularity\x18\x02 \x01(\x05R\x0bgranularity\x12\x1a\n\x08requests\x18\x03 \x01(\x05R\x08requests\x12*\n\x11\x64\x61ta_points_limit\x18\x04 \x01(\x05R\x0f\x64\x61taPointsLimit\"\\\n\x15ProductCandleResponse\x12\x43\n\x0fproduct_candles\x18\x01 \x03(\x0b\x32\x1a.coinbase.v1.ProductCandleR\x0eproductCandles2q\n\x13ProductsDataService\x12Z\n\x11GetProductCandles\x12!.coinbase.v1.ProductCandleRequest\x1a\".coinbase.v1.ProductCandleResponseBu\n\x0f\x63om.coinbase.v1B\x15\x43oinbaseProductsProtoP\x01\xa2\x02\x03\x43XX\xaa\x02\x0b\x43oinbase.V1\xca\x02\x0b\x43oinbase\\V1\xe2\x02\x17\x43oinbase\\V1\\GPBMetadata\xea\x02\x0c\x43oinbase::V1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n#coinbase/v1/coinbase_products.proto\x12\x0b\x63oinbase.v1\"\xac\x01\n\rProductCandle\x12\x1d\n\nproduct_id\x18\x01 \x01(\tR\tproductId\x12\x14\n\x05start\x18\x02 \x01(\x05R\x05start\x12\x10\n\x03low\x18\x03 \x01(\x01R\x03low\x12\x12\n\x04high\x18\x04 \x01(\x01R\x04high\x12\x12\n\x04open\x18\x05 \x01(\x01R\x04open\x12\x14\n\x05\x63lose\x18\x06 \x01(\x01R\x05\x63lose\x12\x16\n\x06volume\x18\x07 \x01(\x01R\x06volume\"\x9f\x01\n\x14ProductCandleRequest\x12\x1d\n\nproduct_id\x18\x01 \x03(\tR\tproductId\x12 \n\x0bgranularity\x18\x02 \x01(\x05R\x0bgranularity\x12\x1a\n\x08requests\x18\x03 \x01(\x05R\x08requests\x12*\n\x11\x64\x61ta_points_limit\x18\x04 \x01(\x05R\x0f\x64\x61taPointsLimit\"\\\n\x15ProductCandleResponse\x12\x43\n\x0fproduct_candles\x18\x01 \x03(\x0b\x32\x1a.coinbase.v1.ProductCandleR\x0eproductCandles2q\n\x13ProductsDataService\x12Z\n\x11GetProductCandles\x12!.coinbase.v1.ProductCandleRequest\x1a\".coinbase.v1.ProductCandleResponseBu\n\x0f\x63om.coinbase.v1B\x15\x43oinbaseProductsProtoP\x01\xa2\x02\x03\x43XX\xaa\x02\x0b\x43oinbase.V1\xca\x02\x0b\x43oinbase\\V1\xe2\x02\x17\x43oinbase\\V1\\GPBMetadata\xea\x02\x0c\x43oinbase::V1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,11 +33,11 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'\n\017com.coinbase.v1B\025CoinbaseProductsProtoP\001\242\002\003CXX\252\002\013Coinbase.V1\312\002\013Coinbase\\V1\342\002\027Coinbase\\V1\\GPBMetadata\352\002\014Coinbase::V1'
   _globals['_PRODUCTCANDLE']._serialized_start=53
-  _globals['_PRODUCTCANDLE']._serialized_end=223
-  _globals['_PRODUCTCANDLEREQUEST']._serialized_start=226
-  _globals['_PRODUCTCANDLEREQUEST']._serialized_end=385
-  _globals['_PRODUCTCANDLERESPONSE']._serialized_start=387
-  _globals['_PRODUCTCANDLERESPONSE']._serialized_end=479
-  _globals['_PRODUCTSDATASERVICE']._serialized_start=481
-  _globals['_PRODUCTSDATASERVICE']._serialized_end=594
+  _globals['_PRODUCTCANDLE']._serialized_end=225
+  _globals['_PRODUCTCANDLEREQUEST']._serialized_start=228
+  _globals['_PRODUCTCANDLEREQUEST']._serialized_end=387
+  _globals['_PRODUCTCANDLERESPONSE']._serialized_start=389
+  _globals['_PRODUCTCANDLERESPONSE']._serialized_end=481
+  _globals['_PRODUCTSDATASERVICE']._serialized_start=483
+  _globals['_PRODUCTSDATASERVICE']._serialized_end=596
 # @@protoc_insertion_point(module_scope)
