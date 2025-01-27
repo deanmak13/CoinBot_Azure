@@ -1,5 +1,7 @@
 import logging
 import sys
+from datetime import timezone, datetime
+
 import yaml
 import os
 
@@ -40,6 +42,9 @@ def get_config(config_name, config_file):
     with open(f"./config/{config_file}") as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
         return config[config_name]
+
+def epoch_to_datetime(epoch):
+    return datetime.fromtimestamp(epoch, tz=timezone.utc)
 
 
 GRPC_COMMUNICATION_CHANNEL = get_config('communication_channel', 'grpc.yaml')

@@ -75,6 +75,7 @@ class RealTimeMarketData{
 
   /**
    * Retrieves candlestick data for a specific product from the Coinbase API.
+   * Then sends the data over to Insights.
    * See candles channel: https://docs.cdp.coinbase.com/advanced-trade/docs/ws-channels#candles-channel
    * @param {string} productID - The ID of the product.
    * @returns ProductCandleResponse, which contains:
@@ -85,7 +86,7 @@ class RealTimeMarketData{
    *    close - closing price (last trade) in the bucket interval
    *    volume - volume of trading activity during the bucket interval
    */
-  async getProductCandles(productCandleRequest){
+  async forwardProductCandles(productCandleRequest){
     let channel = "candles"
     try{
       let webSocket = new WebSocket(this.endpoint);

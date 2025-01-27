@@ -25,16 +25,16 @@ const EventGridClientFactory = (() => {
 })();
 
 function createEvent(id, type, subject, data){
- return {id: `${id}`, eventType: type, data: data, dataVersion: "1.0", subject: subject, eventTime: new Date().toISOString()}
-};
+  return {id: `${id}`, eventType: type, data: data, dataVersion: "1.0", subject: subject, eventTime: new Date().toISOString()}
+}
 
 async function publishEvent(event) {
     const client = EventGridClientFactory.getClient("candle");
     try { 
         await client.send([event]);
-        logger.info(`${event["eventType"]} event published successfully.`); 
+        logger.info(`EventType:${event["eventType"]},EventID:${event["id"]} - event published successfully.`);
     } catch (error) {
-        logger.error(`${event["eventType"]} error publishing event: ${error}`);
+        logger.error(`EventType:${event["eventType"]},EventID:${event["id"]} - error publishing event: ${error}`);
     }
 }
 

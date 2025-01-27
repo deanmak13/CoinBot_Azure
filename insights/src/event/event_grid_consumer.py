@@ -1,9 +1,11 @@
-import json
-from google.protobuf import json_format
 from flask import request, jsonify
-from grpc.gen.coinbase.v1.coinbase_products_pb2 import ProductCandle
-from analytics.candle_technical_indicators import updateTechnicalIndicators
+
+import utils
+from event.data_preprocessor import dict_to_product_candle
+from analytics.candle_technical_indicators import update_technical_indicators
 from utils import get_config
+
+_logger = utils.get_logger("Insights")
 
 
 def handle_events():
@@ -13,6 +15,7 @@ def handle_events():
             return validation_response  # Early exit if validation is needed
 
         # Parse the Event Grid events
+        print("Attempting to get JSON from request in handle_events")
         events = request.get_json()
 
         process_event(events)
@@ -35,16 +38,14 @@ def validate_event_grid(request):
 
 
 def process_event(events):
-    for event in events:  # Process each event if there are multiple
+    for event in events:
         data = event.get('data')
         match event.get('eventType'):
             case EventType.CANDLE:
-                print(f"Processing {EventType.CANDLE} event type. [Event I.D: {event.get('id')}]")
-                if isinstance(data, list):
-                    data = bytes(data)
-                product_candle = ProductCandle().ParseFromString(data)
-                print(product_candle)
-                updateTechnicalIndicators(product_candle)
+                _logger.info(f"Processing {EventType.CANDLE} event type. [Event I.D: {event.get('id')}]")
+                print(f"Processing current data: {data}")
+                product_candle = dict_to_product_candle(data)
+                update_technical_indicators(product_candle)
             case _:
                 print("Handling a general event...")
 
