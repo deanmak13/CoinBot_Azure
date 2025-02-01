@@ -17,6 +17,7 @@ const EventGridClientFactory = (() => {
       getClient: (dataType) => {
         const endpoint = process.env.EVENT_GRID_TOPIC_URL;
         if (!clients[dataType]) {
+            logger.info(`Instantiating ${dataType} EventGridPublisherClient`);
           clients[dataType] = createInstance(endpoint);
         }
         return clients[dataType];
@@ -29,7 +30,7 @@ function createEvent(id, type, subject, data){
 }
 
 async function publishEvent(event) {
-    const client = EventGridClientFactory.getClient("candle");
+    const client = EventGridClientFactory.getClient("candleData");
     try { 
         await client.send([event]);
         logger.info(`EventType:${event["eventType"]},EventID:${event["id"]} - event published successfully.`);

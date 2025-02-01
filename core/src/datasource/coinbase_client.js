@@ -107,13 +107,12 @@ class RealTimeMarketData{
 
       webSocket.addEventListener("message", (event) => {
         let data = JSON.parse(event.data);
-        let productCandlesList = []
         if (data.events){
           for (const event of data.events){
             if (event.candles){
               logger.info("%s channel received %d data points", channel, event.candles.length)
               for (const candle of event.candles){
-                this.dataPreprocessor.processProductCandleData(candle);
+                this.dataPreprocessor.eventiseProductCandle(candle);
               }
             }
           }

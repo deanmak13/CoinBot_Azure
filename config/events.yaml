@@ -1,7 +1,12 @@
 
-candles:
+candle_data:
   product_ids: 
     - "BTC-USD"
   event_grid.event_type: "productCandleData"
   event_grid.analytics_event_type: "productCandleDataAnalytics"
   event_grid.subscription_name: "product-candle-data"
+  event_grid.subscription_endpoint: "/subscribe/candles/data"
+
+candle_analytics:
+  event_grid.event_type: "productCandleDataAnalytics"
+  event_grid.subscription_endpoint: "/subscribe/candles/analytics"

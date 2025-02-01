@@ -18,7 +18,7 @@ if (enableGrpc) {
 function realTimeProductCandlePipeline(){
     // Creating product candle request for real time data
     logger.info("Retrieving configs to begin real time data polling.");
-    let candleConfig = utils.loadYamlConfig("candles", "events.yaml");
+    let candleConfig = utils.getConfig("candle_data", "events.yaml");
     let productCandleRequest = new ProductCandleRequest();
     productCandleRequest.setProductIdList(candleConfig["product_ids"]);
     // Requesting and sending real time product candle data to Insights
@@ -26,5 +26,10 @@ function realTimeProductCandlePipeline(){
     realTimeMarketDataSocket.forwardProductCandles(productCandleRequest);
 }
 
-realTimeProductCandlePipeline();
-startEventGridListener();
+(async () => {
+    // Start the event listener first and wait for it to be ready
+    await startEventGridListener();
+
+    // Then start the real-time polling
+    realTimeProductCandlePipeline();
+})();

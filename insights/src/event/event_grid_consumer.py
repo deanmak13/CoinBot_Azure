@@ -1,8 +1,11 @@
+import asyncio
+
 from flask import request, jsonify
 
 import utils
-from event.data_preprocessor import dict_to_product_candle
+from event.data_preprocessor import dict_to_product_candle, DataPreprocessor
 from analytics.candle_technical_indicators import update_technical_indicators
+from event.model.EventType import EventType
 from utils import get_config
 
 _logger = utils.get_logger("Insights")
@@ -15,7 +18,6 @@ def handle_events():
             return validation_response  # Early exit if validation is needed
 
         # Parse the Event Grid events
-        print("Attempting to get JSON from request in handle_events")
         events = request.get_json()
 
         process_event(events)
@@ -43,12 +45,7 @@ def process_event(events):
         match event.get('eventType'):
             case EventType.CANDLE:
                 _logger.info(f"Processing {EventType.CANDLE} event type. [Event I.D: {event.get('id')}]")
-                print(f"Processing current data: {data}")
                 product_candle = dict_to_product_candle(data)
-                update_technical_indicators(product_candle)
+                DataPreprocessor().eventise_product_candle_analysis(update_technical_indicators(product_candle))
             case _:
                 print("Handling a general event...")
-
-
-class EventType:
-    CANDLE = get_config("candles", "events.yaml")['event_grid.event_type']

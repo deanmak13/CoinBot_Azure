@@ -3,9 +3,10 @@ from collections import deque
 from datetime import timedelta, datetime, timezone
 import numpy
 
+from event.data_preprocessor import DataPreprocessor
 from utils import get_logger, epoch_to_datetime
 
-_logger = get_logger(logger_name="Insights")
+_logger = get_logger(logger_name="Insights []")
 
 candleQueue = deque(maxlen=300)
 candle_granularity_mins = 5
@@ -16,11 +17,9 @@ def update_technical_indicators(latest_candle_data):
         latest_start_time = epoch_to_datetime(latest_candle_data.start)
         oldest_start_time = epoch_to_datetime(oldest_candle_data_in_queue.start)
         if latest_start_time - oldest_start_time >= timedelta(minutes=candle_granularity_mins):
-            _logger.info(f"Clearing candle calculation queue [threshold: {candle_granularity_mins} mins]")
             candleQueue.pop()
     candleQueue.appendleft(latest_candle_data)
-    combined_calculations = calculate_moving_averages() | calculate_bands() | calculate_candlestick_patterns() | calculate_momentum_indicators()
-    print(combined_calculations)
+    return calculate_moving_averages() | calculate_bands() | calculate_candlestick_patterns() | calculate_momentum_indicators()
 
 # Aligned with Trend Analysis
 def calculate_moving_averages(timeperiod=2):

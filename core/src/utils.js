@@ -29,12 +29,12 @@ function getLogger(){
     });
     return log4js.getLogger('Core');}
 
-function loadYamlConfig(configName, configFile) {
+function getConfig(configName, configFile) {
     const config = yaml.load(fs.readFileSync(`./config/${configFile}`, 'utf8'));
     return config[configName];
 }
 
-const GRPC_COMMUNICATION_CHANNEL = loadYamlConfig('communication_channel', 'grpc.yaml');
+const GRPC_COMMUNICATION_CHANNEL = getConfig('communication_channel', 'grpc.yaml');
 
 
-module.exports = {loadYamlConfig, getLogger, GRPC_COMMUNICATION_CHANNEL}
+module.exports = {getConfig, getLogger, GRPC_COMMUNICATION_CHANNEL}

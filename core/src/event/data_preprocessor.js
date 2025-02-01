@@ -1,7 +1,7 @@
 const {ProductCandle, ProductCandleResponse, ProductCandleRequest} = require('../grpc/gen/coinbase/v1/coinbase_products_pb');
 const {createEvent, publishEvent} = require("./event_grid_publisher");
 const utils = require('../utils');
-const jspb = require('google-protobuf');
+const {EventType} = require('./model/EventType');
 
 let logger = utils.getLogger();
 
@@ -27,26 +27,10 @@ class DataPreprocessor{
         this.processedProductCandleDataCount = 0;
     }
 
-    // TODO: need to figure out how to map direct without setting each field. Issue with generated proto classes
-    mapCandleJSONToProductCandle(candle) {
-      let productCandle = new ProductCandle();
-      // Mapping and setting fields
-      productCandle.setProductId(candle.product_id);
-      productCandle.setStart(parseInt(candle.start));
-      productCandle.setLow(parseFloat(candle.low));
-      productCandle.setHigh(parseFloat(candle.high));
-      productCandle.setOpen(parseFloat(candle.open));
-      productCandle.setClose(parseFloat(candle.close));
-      productCandle.setVolume(parseFloat(candle.volume));
-      return productCandle;
-  }
-
-    processProductCandleData(candleJSON){
-        let eventType = "productCandleData";
-        let subject = "core/src/event/data_preprocessor/processProductCandleData";
-        let productCandle = this.mapCandleJSONToProductCandle(candleJSON)
-        let serializedJson = productCandle.toObject(productCandle);
-        let event = createEvent(this.processedProductCandleDataCount, eventType, subject, serializedJson);
+    eventiseProductCandle(candleJSON){
+        let eventType = EventType.CANDLE;
+        let subject = "core/src/event/data_preprocessor/prepareProductCandleEvent";
+        let event = createEvent(this.processedProductCandleDataCount, eventType, subject, candleJSON);
         publishEvent(event);
         this.processedProductCandleDataCount++;
     }
