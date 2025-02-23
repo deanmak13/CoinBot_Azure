@@ -1,9 +1,11 @@
-const {ProductCandle, ProductCandleResponse, ProductCandleRequest} = require('../grpc/gen/coinbase/v1/coinbase_products_pb');
+const { monotonicFactory  } = require('ulid');
 const {createEvent, publishEvent} = require("./event_grid_publisher");
 const utils = require('../utils');
 const {EventType} = require('./model/EventType');
 
 let logger = utils.getLogger();
+
+const generateUlid = monotonicFactory();
 
 const DataPreprocessorInstance = (() => {
     let instance;
@@ -23,16 +25,15 @@ const DataPreprocessorInstance = (() => {
 })();
 
 class DataPreprocessor{
-    constructor(){
-        this.processedProductCandleDataCount = 0;
-    }
+    constructor(){}
 
     eventiseProductCandle(candleJSON){
         let eventType = EventType.CANDLE;
         let subject = "core/src/event/data_preprocessor/eventiseRealTimeProductCandle";
-        let event = createEvent(this.processedProductCandleDataCount, eventType, subject, candleJSON);
+        // Generate a monotonic ULID.
+        let id = generateUlid();
+        let event = createEvent(id, eventType, subject, candleJSON);
         publishEvent(event);
-        this.processedProductCandleDataCount++;
     }
 }
 
