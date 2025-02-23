@@ -32,4 +32,4 @@ def publish_event(event):
         publisher_client.send([event])
         _logger.info(f"EventType:{event["eventType"]},EventID:{event["id"]} - event published successfully.")
     except Exception as err:
-        _logger.error(f"EventType:{event["eventType"]},EventID:{event["id"]} - error publishing event: {err}")
+        _logger.exception(f"EventType:{event["eventType"]},EventID:{event["id"]} - error publishing event: {err}")

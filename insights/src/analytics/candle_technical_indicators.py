@@ -1,5 +1,5 @@
 from talib import abstract as TA
-from collections import deque
+from sortedcontainers import SortedList
 from datetime import timedelta, datetime, timezone
 import numpy
 
@@ -7,17 +7,19 @@ from utils import get_logger, epoch_to_datetime
 
 _logger = get_logger(logger_name="Insights []")
 
-candleQueue = deque(maxlen=300)
+candleQueue = SortedList(key=lambda candle: candle.start)
 candle_granularity_mins = 5
 
 def update_technical_indicators(latest_candle_data):
-    if len(candleQueue) > 0:
-        oldest_candle_data_in_queue = candleQueue[-1]
+    candleQueue.add(latest_candle_data)
+
+    if candleQueue:
+        oldest_candle_in_queue = candleQueue[0]
         latest_start_time = epoch_to_datetime(latest_candle_data.start)
-        oldest_start_time = epoch_to_datetime(oldest_candle_data_in_queue.start)
+        oldest_start_time = epoch_to_datetime(oldest_candle_in_queue.start)
         if latest_start_time - oldest_start_time >= timedelta(minutes=candle_granularity_mins):
-            candleQueue.pop()
-    candleQueue.appendleft(latest_candle_data)
+            candleQueue.pop(0)
+
     return get_cleaned_ohlcv() | calculate_moving_averages() | calculate_bands() | calculate_candlestick_patterns() | calculate_momentum_indicators()
 
 # Aligned with Trend Analysis
