@@ -30,7 +30,8 @@ function getLogger(){
     return log4js.getLogger('Core');}
 
 function getConfig(configName, configFile) {
-    const config = yaml.load(fs.readFileSync(`./config/${configFile}`, 'utf8'));
+    const configPath = path.join(__dirname, '..', '..', '..', 'config', configFile);
+    const config = yaml.load(fs.readFileSync(configPath, 'utf8'));
     return config[configName];
 }
 

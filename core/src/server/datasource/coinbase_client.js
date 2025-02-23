@@ -6,8 +6,7 @@ const { ClientSecretCredential } = require("@azure/identity");
 const utils = require('../utils');
 const WebSocket = require('ws');
 const {DataPreprocessorInstance} = require("../event/data_preprocessor");
-const {ProductCandleRequest, ProductCandleResponse, ProductCandle} = require('../grpc/gen/coinbase/v1/coinbase_products_pb');
-const { log } = require('@grpc/grpc-js/build/src/logging');
+const {ProductCandleResponse, ProductCandle} = require('../grpc/gen/coinbase/v1/coinbase_products_pb');
 
 let logger = utils.getLogger();
 
@@ -73,11 +72,20 @@ class RealTimeMarketData{
     this.dataPreprocessor = DataPreprocessorInstance.getInstance();
   }
 
+  sendChannelHeartbeat(webSocket, channel){
+    setInterval(() => {
+      if (webSocket.readyState === WebSocket.OPEN) {
+        webSocket.send(JSON.stringify({ type: "ping" }));
+        logger.info("Sent %ss interval heartbeat ping to %s channel", this.heartbeatTime, channel);
+      }
+    }, this.heartbeatTime);
+  }
+
   /**
    * Retrieves candlestick data for a specific product from the Coinbase API.
    * Then sends the data over to Insights.
    * See candles channel: https://docs.cdp.coinbase.com/advanced-trade/docs/ws-channels#candles-channel
-   * @param {string} productID - The ID of the product.
+   * @param productCandleRequest
    * @returns ProductCandleResponse, which contains:
    *    time - bucket start time
    *    low - lowest price during the bucket interval
@@ -86,7 +94,7 @@ class RealTimeMarketData{
    *    close - closing price (last trade) in the bucket interval
    *    volume - volume of trading activity during the bucket interval
    */
-  async forwardProductCandles(productCandleRequest){
+  async feedProductCandlesInsights(productCandleRequest){
     let channel = "candles"
     try{
       let webSocket = new WebSocket(this.endpoint);
@@ -95,14 +103,7 @@ class RealTimeMarketData{
         let subscribeMessage = {"type": "subscribe", "product_ids":productCandleRequest.getProductIdList(), "channel": channel};
         webSocket.send(JSON.stringify(subscribeMessage));
         logger.info("Subscribed to %s tickers for %s channel", productCandleRequest.getProductIdList(), channel);
-
-        // Sending
-        setInterval(() => { 
-          if (webSocket.readyState === WebSocket.OPEN) { 
-            webSocket.send(JSON.stringify({ type: "ping" }));
-            logger.info("Sent %ss interval heartbeat ping to %s channel", this.heartbeatTime, channel); 
-          } 
-        }, this.heartbeatTime);
+        this.sendChannelHeartbeat(webSocket, channel)
       });
 
       webSocket.addEventListener("message", (event) => {

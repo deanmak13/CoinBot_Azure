@@ -3,7 +3,6 @@ from collections import deque
 from datetime import timedelta, datetime, timezone
 import numpy
 
-from event.data_preprocessor import DataPreprocessor
 from utils import get_logger, epoch_to_datetime
 
 _logger = get_logger(logger_name="Insights []")
@@ -19,7 +18,7 @@ def update_technical_indicators(latest_candle_data):
         if latest_start_time - oldest_start_time >= timedelta(minutes=candle_granularity_mins):
             candleQueue.pop()
     candleQueue.appendleft(latest_candle_data)
-    return calculate_moving_averages() | calculate_bands() | calculate_candlestick_patterns() | calculate_momentum_indicators()
+    return get_cleaned_ohlcv() | calculate_moving_averages() | calculate_bands() | calculate_candlestick_patterns() | calculate_momentum_indicators()
 
 # Aligned with Trend Analysis
 def calculate_moving_averages(timeperiod=2):
@@ -71,14 +70,28 @@ def calculate_candlestick_patterns():
     candlestick_patterns = numpy.column_stack((hammer, engulfing))
     return clean_calc_outputs(candlestick_patterns, overlay_study_names)
 
+# Returning numpy ohlcv, not to be used for inputs
+def get_cleaned_ohlcv():
+    inputs = get_ohlcv_inputs()
+    # Define which keys are numeric, as stacking with non-numerics results in string casting on all
+    numeric_keys = [key for key in inputs.keys() if key != 'id']
+    ohlcv_data = numpy.column_stack(([inputs[key] for key in numeric_keys]))
+    cleaned = clean_calc_outputs(ohlcv_data, numeric_keys)
+    # Add back the string id
+    cleaned['id'] = inputs['id'].tolist()
+    return cleaned
+
 def get_ohlcv_inputs():
-    return {'low': numpy.array([candle.low for candle in candleQueue]),
-              'high': numpy.array([candle.high for candle in candleQueue]),
-              'open': numpy.array([candle.open for candle in candleQueue]),
-              'close': numpy.array([candle.close for candle in candleQueue]),
-              'volume': numpy.array([candle.volume for candle in candleQueue])}
+    return {'id': numpy.array([candle.product_id for candle in candleQueue]),
+            'time': numpy.array([candle.start for candle in candleQueue]),
+            'low': numpy.array([candle.low for candle in candleQueue]),
+            'high': numpy.array([candle.high for candle in candleQueue]),
+            'open': numpy.array([candle.open for candle in candleQueue]),
+            'close': numpy.array([candle.close for candle in candleQueue]),
+            'volume': numpy.array([candle.volume for candle in candleQueue])}
 
 def clean_calc_outputs(combined_array, array_columns):
     if not numpy.isnan(combined_array).all():
-        return {study_name: data for study_name, data in zip(array_columns, combined_array.tolist())}
+        # Transpose to zip columns instead of rows
+        return {study_name: data for study_name, data in zip(array_columns, combined_array.T.tolist())}
     return {}

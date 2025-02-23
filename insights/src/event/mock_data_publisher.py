@@ -1,4 +1,4 @@
-from event.event_grid_consumer import process_event
+from event.event_grid_subscriber import process_event
 from grpc.gen.coinbase.v1.coinbase_products_pb2 import ProductCandle
 
 

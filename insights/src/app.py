@@ -1,7 +1,7 @@
 from flask import Flask
 
 import utils
-from event.event_grid_consumer import handle_events
+from event.event_grid_subscriber import handle_events
 from dotenv import load_dotenv
 
 load_dotenv()

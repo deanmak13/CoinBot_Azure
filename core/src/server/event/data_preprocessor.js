@@ -29,7 +29,7 @@ class DataPreprocessor{
 
     eventiseProductCandle(candleJSON){
         let eventType = EventType.CANDLE;
-        let subject = "core/src/event/data_preprocessor/prepareProductCandleEvent";
+        let subject = "core/src/event/data_preprocessor/eventiseRealTimeProductCandle";
         let event = createEvent(this.processedProductCandleDataCount, eventType, subject, candleJSON);
         publishEvent(event);
         this.processedProductCandleDataCount++;

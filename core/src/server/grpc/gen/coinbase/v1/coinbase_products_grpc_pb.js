@@ -2,7 +2,7 @@
 
 'use strict';
 var grpc = require('@grpc/grpc-js');
-var coinbase_v1_coinbase_products_pb = require('../../coinbase/v1/coinbase_products_pb.js');
+var coinbase_v1_coinbase_products_pb = require('./coinbase_products_pb.js');
 
 function serialize_coinbase_v1_ProductCandleRequest(arg) {
   if (!(arg instanceof coinbase_v1_coinbase_products_pb.ProductCandleRequest)) {
