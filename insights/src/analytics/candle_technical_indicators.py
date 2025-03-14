@@ -8,7 +8,7 @@ from utils import get_logger, epoch_to_datetime
 _logger = get_logger(logger_name="Insights []")
 
 candleQueue = SortedList(key=lambda candle: candle.start)
-candle_granularity_mins = 5
+candle_granularity_mins = 60
 
 def update_technical_indicators(latest_candle_data):
     candleQueue.add(latest_candle_data)

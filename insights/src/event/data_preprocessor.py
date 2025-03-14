@@ -1,5 +1,3 @@
-import asyncio
-
 import utils
 from event.event_grid_publisher import create_event, publish_event
 from event.model.EventType import EventType
@@ -26,7 +24,7 @@ class DataPreprocessor:
         return cls.instance
 
     def eventise_product_candle_analysis(self, analysis_data):
-        _logger.info("Eventising analysis data of column size: " + str(len(analysis_data)))
+        _logger.info(f"Eventising analysis data of column size: {len(analysis_data)}, row count: {len(next(iter(analysis_data.values())))}")
         event_type = EventType.CANDLE_ANALYTICS
         subject = "insights/src/event/prepare_product_candle_analysis_event"
         event = create_event(self.processedProduceCandleAnalysisEvent, event_type, subject, analysis_data)
