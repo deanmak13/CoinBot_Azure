@@ -178,7 +178,7 @@ class HistoricalMarketData{
       let productCandles = new ProductCandleResponse().setProductCandlesList(response_data);
       return productCandles;
     } catch (error) {
-      console.log(error);
+      console.error(error);
     }
   }
 

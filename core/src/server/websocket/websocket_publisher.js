@@ -21,7 +21,6 @@ function broadcastToClients(data, dataType, dataId) {
     const message = JSON.stringify(data);
     clients.forEach
     (client => {
-        console.log(client.readyState);
         if (client.readyState === WebSocket.OPEN) {
             logger.info(`Pushing data to ${clients.size} Websocket Subscribers: [EventType:${dataType},EventID:${dataId}]`);
             client.send(message);
