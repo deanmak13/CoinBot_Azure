@@ -4,6 +4,7 @@
 # Dependency directories
 node_modules/
 jspm_packages/
+core/node_modules/
 
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/

@@ -20,12 +20,15 @@ def setup_logger(logger_name: str):
     _logger.addHandler(console_handler)
 
     # File handler
-    log_file_path = os.path.join("../home/LogFiles", f"{logger_name}.log")
-    file_handler = logging.FileHandler(log_file_path)
-    file_handler.setLevel(logging.INFO)
-    file_formatter = logging.Formatter('%(asctime)s - %(name)s - [%(levelname)s] - %(message)s')
-    file_handler.setFormatter(file_formatter)
-    _logger.addHandler(file_handler)
+    # log_file_path = os.path.join("..", "home", "LogFiles", f"{logger_name}.log")
+    # if not os.path.exists(log_file_path):
+    #     with open(log_file_path, "w"):
+    #         pass
+    # file_handler = logging.FileHandler(log_file_path)
+    # file_handler.setLevel(logging.INFO)
+    # file_formatter = logging.Formatter('%(asctime)s - %(name)s - [%(levelname)s] - %(message)s')
+    # file_handler.setFormatter(file_formatter)
+    # _logger.addHandler(file_handler)
 
     loggers.append(_logger)
     return _logger
