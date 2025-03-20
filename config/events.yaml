@@ -1,0 +1,13 @@
+
+candle_data:
+  product_ids: 
+    - "BTC-USD"
+  event_grid.event_type: "productCandleData"
+  event_grid.subscription_name: "product-candle-data"
+  event_grid.subscription_endpoint: "/subscribe/candles/data"
+  event_grid.port: 5000
+
+candle_analytics:
+  event_grid.event_type: "productCandleDataAnalytics"
+  event_grid.subscription_endpoint: "/subscribe/candles/analytics"
+  event_grid.port: 3000

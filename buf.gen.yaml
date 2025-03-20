@@ -1,0 +1,22 @@
+version: v2
+managed:
+  enabled: true
+clean: true
+plugins:
+  ## JAVASCRIPT
+  - remote: buf.build/grpc/node:v1.12.4
+    out: core/src/grpc/gen
+    opt: grpc_js
+  - remote: buf.build/protocolbuffers/js:v3.21.4
+    out: core/src/grpc/gen
+    opt: import_style=commonjs,binary
+  ## PYTHON 
+  - remote: buf.build/grpc/python:v1.69.0
+    out: insights/src/grpc/gen
+  - remote: buf.build/protocolbuffers/python:v29.3
+    out: insights/src/grpc/gen
+  # dependencies
+  - remote: buf.build/protocolbuffers/pyi:v29.3
+    out: insights/src/grpc/gen
+inputs:
+  - directory: protos

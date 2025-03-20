@@ -1,0 +1,4 @@
+communication_channel: "127.0.0.1:13130"
+
+product_ids: 
+  - "BTC-USD"

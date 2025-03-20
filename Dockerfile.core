@@ -1,0 +1,24 @@
+FROM node:lts-alpine
+
+ENV NODE_ENV=production
+
+WORKDIR /app/core
+RUN chown -R node:node /app/core
+
+# Create and set permissions for the log directory
+RUN mkdir -p ../home/LogFiles && chown -R node:node ../home/LogFiles
+
+RUN npm i -g concurrently
+
+USER node
+
+# Copying files/folders
+COPY --chown=node:node ["./core/package.json", "./core/package-lock.json*", "./core/npm-shrinkwrap.json*", "./"]
+COPY --chown=node:node ./config ../config
+COPY --chown=node:node ./core .
+
+RUN npm install --production --silent
+
+EXPOSE 3000
+
+CMD ["npm", "start"]

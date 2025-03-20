@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  core:
+    build:
+      context: .
+      dockerfile: ./core/Dockerfile
+    image: coinbot-core
+    ports:
+      - "3000:3000"
+  insights:
+    build:
+      context: .
+      dockerfile: ./insights/Dockerfile
+    image: coinbot-insights
+    ports:
+      - "5000:5000"
