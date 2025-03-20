@@ -12,19 +12,11 @@ function getLogger(){
                     type: "pattern",
                     pattern: '%d{ISO8601} - %c - [%p] - %m'
                 }
-            },
-            file: {
-                type: 'file',
-                filename: path.join('../home/LogFiles', 'app.log'), // Adjust this path for Windows: 'D:\\home\\LogFiles\\app.log'
-                layout: {
-                    type: "pattern",
-                    pattern: '%d{ISO8601} - %c - [%p] - %m'
-                }
             }
         },
         categories: {
-            default: { appenders: ['console', 'file'], level: 'info' },
-            MainService: { appenders: ['console', 'file'], level: 'info' }
+            default: { appenders: ['console'], level: 'info' },
+            MainService: { appenders: ['console'], level: 'info' }
         }
     });
     return log4js.getLogger('Core');}
