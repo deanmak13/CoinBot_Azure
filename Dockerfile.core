@@ -14,10 +14,10 @@ USER node
 COPY --chown=node:node ["./core/package.json", "./core/package-lock.json*", "./core/npm-shrinkwrap.json*", "./"]
 COPY --chown=node:node ./config ../config
 COPY --chown=node:node ./core .
-COPY --chown=node:node ./sqlite ./sqlite
+COPY --chown=node:node ./sqlite ../sqlite
 
 # Create sqlite caching DB
-RUN sqlite3 ./sqlite/anal.db < candle.analdb-schema.sql
+RUN sqlite3 ../sqlite/anal.db < ../sqlite/candle.analdb-schema.sql
 
 RUN npm install --silent --include=dev
 

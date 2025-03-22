@@ -1,14 +1,14 @@
 const utils = require('./utils');
-const {RealTimeMarketData} = require("./api/coinbase_client");
 const args = require('minimist')(process.argv.slice(2));
 const path = require('path');
+const express = require('express');
+const {Router} = require("express");
+const {RealTimeMarketData} = require("./api/coinbase_client");
 const {ProductCandleRequest} = require("./grpc/gen/coinbase/v1/coinbase_products_pb")
-const {startEventGridListener} = require("./event/event_grid_subscriber");
-const express = require("express");
-require('./websocket/websocket_publisher'); // starts the WebSocket server
+const {handleEvents} = require("./event/event_grid_subscriber");
+const {DataPreprocessorInstance} = require("./event/data_preprocessor");
 
-const frontEndApp = express();
-const eventGridApp = express();
+const app = express();
 
 let logger = utils.getLogger();
 
@@ -16,31 +16,62 @@ const realTimeMarketDataSocket = new RealTimeMarketData();
 
 function realTimeProductCandlePipeline(){
     // Creating product candle request for real time data
-    logger.info("Retrieving configs to begin real time data polling.");
+    logger.info("Requesting real time Product Candle Data...");
     let candleConfig = utils.getConfig("candle_data", "events.yaml");
     let productCandleRequest = new ProductCandleRequest();
     productCandleRequest.setProductIdList(candleConfig["product_ids"]);
-    // Requesting and sending real time product candle data to Insights
-    logger.info("Attempting to connect to product candle websocket");
-    realTimeMarketDataSocket.feedProductCandlesInsights(productCandleRequest);
+    // Requesting and sending real time product candle data to EventGrid
+    realTimeMarketDataSocket.streamProductCandleData(productCandleRequest, (candle)=>{
+        DataPreprocessorInstance.getInstance().eventiseProductCandle(candle);}
+    );
 }
 
-function serveFrontEndBuild(){
-    frontEndApp.use(express.static(path.join(__dirname, '..', '..', 'build')));
-    frontEndApp.get('*', (req, res) => {
+function setupEventGridRoutes() {
+    // Apply JSON body parsing only to Event Grid routes
+    const candleAnalyticsSubEndPoint = utils.getConfig("candle_analytics", "events.yaml")['event_grid.subscription_endpoint'];
+
+    // Create a router for event grid endpoints
+    const eventGridRouter = Router();
+    eventGridRouter.use(express.json());
+    eventGridRouter.post(candleAnalyticsSubEndPoint, handleEvents);
+
+    app.use('/', eventGridRouter);
+
+    logger.info(`EventGridSubscriber configured for endpoint: ${candleAnalyticsSubEndPoint}`);
+}
+
+function setupFrontEndRoutes() {
+    // Serve static files from the build directory
+    app.use(express.static(path.join(__dirname, '..', '..', 'build')));
+
+    // Serve index.html for all other routes (should be last)
+    app.get('*', (req, res) => {
         res.sendFile(path.join(__dirname, '..', '..', 'build', 'index.html'));
     });
-    const frontEndPort = process.env.WEBSITES_PORT || 8000;
-    frontEndApp.listen(frontEndPort, () => {
-        logger.info(`FrontEnd listening on port ${frontEndPort}`);
-    }).on('error', (err) => {
-        logger.error(`Failed to start listening for FrontEnd: ${err.message}`);
-        process.exit(1);
-});
 }
 
-(async () => {
-    serveFrontEndBuild();
-    await startEventGridListener(eventGridApp);
+async function startServer() {
+    // Set up routes
+    await setupEventGridRoutes();
+    setupFrontEndRoutes();
+
+    // Begin pulling real time product candle data
     realTimeProductCandlePipeline();
-})();
+
+    // Start the server on a single port
+    const port = process.env.WEBSITES_PORT || 8000;
+    app.listen(port, () => {
+        logger.info(`Server listening on port ${port}`);
+        logger.info(`- Front-end serving from build directory`);
+        const candleAnalyticsSubEndPoint = utils.getConfig("candle_analytics", "events.yaml")['event_grid.subscription_endpoint'];
+        logger.info(`- Event Grid webhook at ${candleAnalyticsSubEndPoint}`);
+    }).on('error', (err) => {
+        logger.error(`Failed to start server: ${err.message}`);
+        process.exit(1);
+    });
+}
+
+startServer().catch(err => {
+    logger.error(`Error during server startup: ${err.message}`);
+    process.exit(1);
+});

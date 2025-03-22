@@ -1,6 +1,5 @@
 const utils = require("../utils");
 const {broadcastToClients} = require('../websocket/websocket_publisher');
-const bodyParser = require("express");
 const {insertDBAnalytics, readDBAnalytics} = require("../db/candle_analytics_cache");
 
 logger = utils.getLogger();
@@ -8,18 +7,6 @@ logger = utils.getLogger();
 let bufferStore={};
 const DELAY_THRESHOLD = 5;
 const BUFFER_SIZE_THRESHOLD = 10;
-
-async function startEventGridListener(expressApp){
-    expressApp.use(bodyParser.json());
-    const candleAnalyticsSubEndPoint = utils.getConfig("candle_analytics", "events.yaml")['event_grid.subscription_endpoint'];
-    const eventGridport = utils.getConfig("candle_analytics", "events.yaml")["event_grid.port"];
-    expressApp.post(candleAnalyticsSubEndPoint, (handleEvents));
-    expressApp.listen(eventGridport, () => {logger.info(`EventGridSubscriber subscribed to endpoint: ${candleAnalyticsSubEndPoint}`);
-    }).on('error', (err) => {
-        logger.error(`Failed to start listening for EventGridSubscriber: ${err.message}`);
-        process.exit(1);
-    });
-}
 
 function handleEvents(req, res){
     try{
@@ -97,4 +84,4 @@ function processEvent(data){
     logger.warn("Attempted to process received event: EventID missing")
 }
 
-module.exports = {startEventGridListener}
+module.exports = {handleEvents}

@@ -4,8 +4,19 @@ const utils = require('../utils');
 
 const logger = utils.getLogger();
 
-const dbPath = path.join(__dirname, '..', '..', '..', '..', 'sqlite', 'anal.db');
-const database = new DatabaseSync(dbPath);
+let dbPath;
+let database ;
+
+try {
+    logger.info("Initialising Candle Analytics Caching database")
+    dbPath = path.join(__dirname, '..', '..', '..', '..', 'sqlite', 'anal.db');
+    database = new DatabaseSync(dbPath);
+} catch (e) {
+    logger.error('Failed to initialise database:', e);
+    process.exit(1);
+}
+
+const DB = database;
 
 /**
  * Inserts a row of analytics data into the 'candle' table.
@@ -17,7 +28,7 @@ function insertDBAnalytics(analyticsData) {
         const columns = Object.keys(analyticsData);
         logger.debug(`Caching candle analytics with [ID: ${analyticsData.id}, time: ${analyticsData.time}]`);
         const placeholders = columns.map(c => `@${c}`).join(', ');
-        const sql = database.prepare(
+        const sql = DB.prepare(
             `INSERT OR REPLACE INTO candle (${columns.join(', ')}) VALUES (${placeholders})`
         );
         return sql.run(analyticsData);
@@ -32,7 +43,7 @@ function insertDBAnalytics(analyticsData) {
  */
 function readDBAnalytics(){
     try {
-        const sql = database.prepare(`SELECT * FROM candle ORDER BY candle.time ASC`);
+        const sql = DB.prepare(`SELECT * FROM candle ORDER BY candle.time ASC`);
         let result = sql.all();
         return collapseObjectArrayToListValueObject(result);
     } catch (e) {
