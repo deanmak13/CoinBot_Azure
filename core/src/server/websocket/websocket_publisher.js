@@ -22,9 +22,10 @@ function broadcastToClients(data, dataType, dataId) {
     clients.forEach
     (client => {
         if (client.readyState === WebSocket.OPEN) {
-            logger.info(`Pushing data to ${clients.size} Websocket Subscribers: [EventType:${dataType},EventID:${dataId}]`);
-            client.send(message);
+            logger.info(`Broadcasting data to 1 of ${clients.size} Websocket Subscribers: [EventType:${dataType},EventID:${dataId}]`);
+            return client.send(message);
         }
+        logger.warn(`Client not in ready state, no data pushed: [EventType:${dataType},EventID:${dataId}]`)
     });
 }
 

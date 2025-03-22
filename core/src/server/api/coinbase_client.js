@@ -111,7 +111,7 @@ class RealTimeMarketData{
         if (data.events){
           for (const event of data.events){
             if (event.candles){
-              logger.info("%s channel received %d data points", channel, event.candles.length)
+              logger.info("CoinBase %s channel received %d data points", channel, event.candles.length)
               for (const candle of event.candles){
                 this.dataPreprocessor.eventiseProductCandle(candle);
               }

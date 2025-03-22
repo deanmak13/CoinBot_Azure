@@ -55,8 +55,10 @@ def process_event(events):
             event['received_at'] = now
             buffer_store[event_id] = event
 
-        # Flush events from the buffer based on our criteria.
-        flush_buffer(now)
+        # Process flushed events from the buffer based on our criteria. Flush one event per call; subsequent invocations can flush more.
+        flushed_event = flush_buffer(now)
+        if flushed_event:
+            process_ordered_event(flushed_event)
 
 def flush_buffer(now):
     global buffer_store
@@ -73,29 +75,29 @@ def flush_buffer(now):
         if event is None:
             continue  # Skip if it's already been removed
         if now - event['received_at'] >= DELAY_THRESHOLD:
-            _logger.info(f"Flushing Event I.D: {event_id} (time threshold met, waited {(now - event['received_at']):.2f} seconds)")
-            process_ordered_event(event)
+            _logger.info(f"Flushing event from buffer [Event I.D: {event_id}] (time threshold met, waited {(now - event['received_at']):.2f} seconds)")
             del buffer_store[event_id]
-            return  # Flush one event per call; subsequent invocations can flush more.
+            return event
 
     # Option 2: If no stale event, but the buffer is too large, flush the event with the smallest ID.
     if len(buffer_store) >= BUFFER_SIZE_THRESHOLD:
-        min_event_id = sorted_ids[0]
-        event = buffer_store.get(min_event_id)
+        oldest_event_id = sorted_ids[0]
+        event = buffer_store.get(oldest_event_id)
         if event:
-            _logger.info(f"Flushing Event I.D: {min_event_id} (size threshold met, buffer size: {len(buffer_store)})")
-            process_ordered_event(event)
-            del buffer_store[min_event_id]
+            _logger.info(f"Flushing event from buffer [Event I.D: {oldest_event_id}] (size threshold met, buffer size: {len(buffer_store)})")
+            del buffer_store[oldest_event_id]
+            return event
 
 def process_ordered_event(event):
     try:
         data = event.get('data')
+        event_id = event.get('id')
         match event.get('eventType'):
             case EventType.CANDLE:
-                _logger.info(f"Processing {EventType.CANDLE} event type. [Event I.D: {event.get('id')}]")
+                _logger.info(f"Processing {EventType.CANDLE} event type. [Event I.D: {event_id}]")
                 product_candle = dict_to_product_candle(data)
                 product_candle_analysis = update_technical_indicators(product_candle)
-                DataPreprocessor().eventise_product_candle_analysis(product_candle_analysis)
+                DataPreprocessor().eventise_product_candle_analysis(event_id, product_candle_analysis)
             case _:
                 _logger.info("Handling a general event...")
     except Exception as e:

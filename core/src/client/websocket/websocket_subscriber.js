@@ -7,17 +7,17 @@ const subscribeToWebsocketPublisher = (url) => {
         const ws = new WebSocket(url);
 
         ws.onopen = () => {
-            console.log("Connected to WebSocket Publisher");
+            console.log("Subscribed to WebSocket");
         };
 
         ws.onmessage = (event) => {
             const parsedData = JSON.parse(event.data);
-            console.log("Received Data:", parsedData);
+            console.debug("Received Data via websocket:", parsedData);
             setData(parsedData);
         };
 
         ws.onclose = () => {
-            console.log("WebSocket Publisher Disconnected");
+            console.log("WebSocket Disconnected");
         };
 
         return () => {

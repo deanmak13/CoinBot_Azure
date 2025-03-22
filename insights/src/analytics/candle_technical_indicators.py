@@ -20,7 +20,14 @@ def update_technical_indicators(latest_candle_data):
         if latest_start_time - oldest_start_time >= timedelta(minutes=candle_granularity_mins):
             candleQueue.pop(0)
 
-    return get_cleaned_ohlcv() | calculate_moving_averages() | calculate_bands() | calculate_candlestick_patterns() | calculate_momentum_indicators()
+    technical_indicators = get_cleaned_ohlcv() | calculate_moving_averages() | calculate_bands() | calculate_candlestick_patterns() | calculate_momentum_indicators()
+
+    latest_indicator_values = {}
+    for key, values in technical_indicators.items():
+        if isinstance(values, list) and values:
+            latest_indicator_values[key] = values[-1]
+
+    return latest_indicator_values
 
 # Aligned with Trend Analysis
 def calculate_moving_averages(timeperiod=2):

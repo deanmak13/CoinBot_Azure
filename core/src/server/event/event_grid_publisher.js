@@ -37,9 +37,9 @@ async function publishEvent(event) {
     const client = EventGridClientFactory.getClient(EventType.CANDLE);
     try {
         await client.send([event]);
-        logger.info(`EventType:${event["eventType"]},EventID:${event["id"]} - event published successfully.`);
+        logger.info(`Published to EventGrid successfully [EventType:${event["eventType"]},EventID:${event["id"]}]`);
     } catch (error) {
-        logger.error(`EventType:${event["eventType"]},EventID:${event["id"]} - error publishing event: ${error}`);
+        logger.error(`Error publishing to EventGrid [EventType:${event["eventType"]},EventID:${event["id"]}]: ${error}`);
     }
 }
 
