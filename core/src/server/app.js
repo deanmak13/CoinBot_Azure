@@ -7,8 +7,10 @@ const {RealTimeMarketData} = require("./api/coinbase_client");
 const {ProductCandleRequest} = require("./grpc/gen/coinbase/v1/coinbase_products_pb")
 const {handleEvents} = require("./event/event_grid_subscriber");
 const {DataPreprocessorInstance} = require("./event/data_preprocessor");
+const {setupWebSocketServer} = require("./websocket/websocket_publisher");
 
 const app = express();
+const port = process.env.WEBSITES_PORT || 8000;
 
 let logger = utils.getLogger();
 
@@ -58,11 +60,14 @@ async function startServer() {
     // Begin pulling real time product candle data
     realTimeProductCandlePipeline();
 
+    // Create the HTTP server with WebSocket support
+    const server = setupWebSocketServer(app);
+
     // Start the server on a single port
-    const port = process.env.WEBSITES_PORT || 8000;
-    app.listen(port, () => {
+    server.listen(port, () => {
         logger.info(`Server listening on port ${port}`);
         logger.info(`- Front-end serving from build directory`);
+        logger.info(`- WebSocket server attached`);
         const candleAnalyticsSubEndPoint = utils.getConfig("candle_analytics", "events.yaml")['event_grid.subscription_endpoint'];
         logger.info(`- Event Grid webhook at ${candleAnalyticsSubEndPoint}`);
     }).on('error', (err) => {

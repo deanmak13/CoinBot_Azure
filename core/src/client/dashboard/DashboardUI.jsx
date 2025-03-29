@@ -16,7 +16,8 @@ import Footer from "./components/Footer";
 import AppTheme from "./shared-theme/AppTheme";
 
 const Dashboard = () => {
-    const realTimeData = subscribeToWebsocketPublisher("ws://localhost:3001")
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const realTimeData = subscribeToWebsocketPublisher(`${protocol}://${window.location.host}`);
 
     return (
         <AppTheme>
