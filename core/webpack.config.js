@@ -26,7 +26,7 @@ module.exports = {
   },
   devServer: {
     historyApiFallback: true,
-    port: 8013, // Frontend development port
+    port: 8000, // Frontend development port
   },
   plugins: [
     new HtmlWebpackPlugin({

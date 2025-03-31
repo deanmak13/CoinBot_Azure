@@ -7,7 +7,8 @@ const {RealTimeMarketData} = require("./api/coinbase_client");
 const {ProductCandleRequest} = require("./grpc/gen/coinbase/v1/coinbase_products_pb")
 const {handleEvents} = require("./event/event_grid_subscriber");
 const {DataPreprocessorInstance} = require("./event/data_preprocessor");
-const {setupWebSocketServer} = require("./websocket/websocket_publisher");
+const {setupWebSocketServer, broadcastToClients} = require("./websocket/websocket_publisher");
+const {readDBAnalytics} = require("./db/candle_analytics_cache");
 
 const app = express();
 const port = process.env.WEBSITES_PORT || 8000;
@@ -45,6 +46,11 @@ function setupEventGridRoutes() {
 function setupFrontEndRoutes() {
     // Serve static files from the build directory
     app.use(express.static(path.join(__dirname, '..', '..', 'build')));
+
+    app.get('/api/latestAnalytics', (req, res) => {
+        const storedData = readDBAnalytics();
+        res.json(storedData);
+    });
 
     // Serve index.html for all other routes (should be last)
     app.get('*', (req, res) => {
