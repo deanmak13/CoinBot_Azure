@@ -30,6 +30,6 @@ def publish_event(event):
     publisher_client = EventGridPublisherClientFactory.get_client("candleAnalytics")
     try:
         publisher_client.send([event])
-        _logger.info(f"EventType:{event["eventType"]},EventID:{event["id"]} - event published successfully.")
+        _logger.info(f"Published to EventGrid successfully [EventType: {event["eventType"]},Event I.D: {event["id"]}].")
     except Exception as err:
-        _logger.exception(f"EventType:{event["eventType"]},EventID:{event["id"]} - error publishing event: {err}")
+        _logger.exception(f"Error publishing to EventGrid. [EventType: {event["eventType"]},Event I.D: {event["id"]}]: {err}")

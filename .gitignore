@@ -148,3 +148,10 @@ insights/artifacts/model_artifacts/archive/
 
 # Ignore Python cache files
 __pycache__/
+
+# Webpack Build Content
+core/build
+core/src - Shortcut.lnk
+
+# Ignore SQLite DB
+sqlite/anal.db

@@ -17,16 +17,14 @@ def dict_to_product_candle(dictionary):
     return product_candle
 
 class DataPreprocessor:
-    processedProduceCandleAnalysisEvent=0
     def __new__(cls, *args, **kwargs):
         if not hasattr(cls, 'instance'):
             cls.instance = super(DataPreprocessor, cls).__new__(cls)
         return cls.instance
 
-    def eventise_product_candle_analysis(self, analysis_data):
-        _logger.info(f"Eventising analysis data of column size: {len(analysis_data)}, row count: {len(next(iter(analysis_data.values())))}")
+    def eventise_product_candle_analysis(self, event_id, analysis_data):
+        _logger.info(f"Eventising analysis data of column size: {len(analysis_data)}")
         event_type = EventType.CANDLE_ANALYTICS
         subject = "insights/src/event/prepare_product_candle_analysis_event"
-        event = create_event(self.processedProduceCandleAnalysisEvent, event_type, subject, analysis_data)
+        event = create_event(event_id, event_type, subject, analysis_data)
         publish_event(event)
-        self.processedProduceCandleAnalysisEvent+=1

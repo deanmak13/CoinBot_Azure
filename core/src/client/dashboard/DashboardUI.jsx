@@ -9,15 +9,12 @@ import Box from "@mui/material/Box";
 import {alpha} from "@mui/material/styles";
 import Stack from "@mui/material/Stack";
 
-import subscribeToWebsocketPublisher from "../websocket/websocket_subscriber";
 import Header from "./components/Header";
 import RealTimeGrid from "./components/RealTimeGrid";
 import Footer from "./components/Footer";
 import AppTheme from "./shared-theme/AppTheme";
 
 const Dashboard = () => {
-    const realTimeData = subscribeToWebsocketPublisher("ws://localhost:3001")
-
     return (
         <AppTheme>
             <CssBaseline enableColorScheme />
@@ -43,7 +40,7 @@ const Dashboard = () => {
                         }}
                     >
                         <Header/>
-                        <RealTimeGrid data={realTimeData}/>
+                        <RealTimeGrid/>
                         <Footer/>
                     </Stack>
                 </Box>

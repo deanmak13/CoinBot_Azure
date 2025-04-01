@@ -33,9 +33,12 @@ lerna-debug.log*
 .env
 
 # models
-.h5
-.keras
-insights/artifacts/model_artifacts/archive/
+*.h5
+*.keras
+insights/artifacts/*
 
 # Ignore Python cache files
 __pycache__/
+
+# Ignore SQLite db's, to be created in dockerfile
+sqlite/*.db

@@ -7,6 +7,7 @@ services:
     image: coinbot-core
     ports:
       - "3000:3000"
+      - "8000:8000"
   insights:
     build:
       context: .

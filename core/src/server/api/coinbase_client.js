@@ -5,7 +5,6 @@ const { SecretClient } = require("@azure/keyvault-secrets");
 const { ClientSecretCredential } = require("@azure/identity");
 const utils = require('../utils');
 const WebSocket = require('ws');
-const {DataPreprocessorInstance} = require("../event/data_preprocessor");
 const {ProductCandleResponse, ProductCandle} = require('../grpc/gen/coinbase/v1/coinbase_products_pb');
 
 let logger = utils.getLogger();
@@ -69,7 +68,6 @@ class RealTimeMarketData{
   constructor(){
     this.endpoint = "wss://advanced-trade-ws.coinbase.com";
     this.heartbeatTime = 30000;
-    this.dataPreprocessor = DataPreprocessorInstance.getInstance();
   }
 
   sendChannelHeartbeat(webSocket, channel){
@@ -86,6 +84,7 @@ class RealTimeMarketData{
    * Then sends the data over to Insights.
    * See candles channel: https://docs.cdp.coinbase.com/advanced-trade/docs/ws-channels#candles-channel
    * @param productCandleRequest
+   * @param candleHandler the lambda function to handle the retrieved candle data
    * @returns ProductCandleResponse, which contains:
    *    time - bucket start time
    *    low - lowest price during the bucket interval
@@ -94,7 +93,7 @@ class RealTimeMarketData{
    *    close - closing price (last trade) in the bucket interval
    *    volume - volume of trading activity during the bucket interval
    */
-  async feedProductCandlesInsights(productCandleRequest){
+  async streamProductCandleData(productCandleRequest, candleHandler){
     let channel = "candles"
     try{
       let webSocket = new WebSocket(this.endpoint);
@@ -111,9 +110,9 @@ class RealTimeMarketData{
         if (data.events){
           for (const event of data.events){
             if (event.candles){
-              logger.info("%s channel received %d data points", channel, event.candles.length)
+              logger.info("CoinBase %s channel received %d data points", channel, event.candles.length)
               for (const candle of event.candles){
-                this.dataPreprocessor.eventiseProductCandle(candle);
+                candleHandler(candle);
               }
             }
           }
