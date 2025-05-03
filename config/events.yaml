@@ -9,5 +9,6 @@ candle_data:
 
 candle_analytics:
   event_grid.event_type: "productCandleDataAnalytics"
+  event_grid.subscription_name: "product-candle-analysis-data"
   event_grid.subscription_endpoint: "/subscribe/candles/analytics"
-  event_grid.port: 3000
+  event_grid.port: 8000
