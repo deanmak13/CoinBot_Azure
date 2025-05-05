@@ -64,7 +64,12 @@ const CandlestickChart = ({ data, patterns=[] }) => {
                     style: 1,
                 },
             },
-            rightPriceScale: { borderVisible: false },
+            rightPriceScale: {
+                borderVisible: false,
+                scaleMargins: {
+                    top: 0.05, // reduce whitespace above
+                    bottom: 0.05 // reduce whitespace below
+                }},
             timeScale: { borderVisible: false },
         });
         const series = chart.addSeries(CandlestickSeries);
@@ -78,8 +83,8 @@ const CandlestickChart = ({ data, patterns=[] }) => {
 
             chart.applyOptions({
                 timeScale: {
-                    barSpacing: Math.max(6, timeInterval / 500), // Adjust spacing based on interval
-                    rightOffset: timeInterval / 100, // Ensures the chart has enough right space
+                    barSpacing: Math.max(6, timeInterval / 300), // Adjust spacing based on interval
+                    rightOffset: timeInterval / 1000, // Ensures the chart has enough right space
                     timeVisible: true,
                     secondsVisible: timeInterval < 60, // Show seconds if interval < 1 minute
                 }

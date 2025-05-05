@@ -1,93 +1,106 @@
-import React from 'react';
-import {Line} from "react-chartjs-2";
-import { ChartOptions } from 'chart.js';
-import annotationPlugin, { AnnotationOptions } from 'chartjs-plugin-annotation';
-import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
-import Card from "@mui/material/Card";
-import {useTheme} from "@mui/material/styles";
-import { chartBackgroundPlugin } from './plugins/chartPlugins';
-import {ChartDescription} from "../components/chart-components/ChartDescription";
+import React, { useEffect, useRef } from 'react';
+import { createChart, LineSeries, LineStyle } from 'lightweight-charts';
+import { Card, CardContent, Box, Typography } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { ChartDescription } from "../components/chart-components/ChartDescription";
 
 const RSIChart = ({ data }) => {
     const theme = useTheme();
+    const chartContainerRef = useRef();
+    const chartRef = useRef();
 
-    const colorPalette = [
-        theme.palette.primary["100"],
-        theme.palette.primary["200"],
-        theme.palette.primary["300"],
-        theme.palette.primary["400"],
-        theme.palette.primary["500"],
-        theme.palette.primary["600"],
-        theme.palette.primary["700"],
-    ];
+    useEffect(() => {
+        if (!data?.time || !data?.RSI) return;
 
-    if (!data || !data.RSI) return <p>Waiting For RSI Data...</p>;
+        if (chartRef.current) {
+            chartRef.current.remove();
+            chartRef.current = null;
+        }
 
-
-
-    const chartData = {
-        labels: data.RSI.map((_, index) => index), // Use index for now, but should be timestamp
-        datasets: [
-            {
-                label: "RSI",
-                data: data.RSI,
-                borderColor: theme.palette.primary.main,
-                borderWidth: 1,
-                backgroundColor: 'transparent',
-                pointRadius: 0,
-                tension: 0.3,
-                fill: false,
+        const chart = createChart(chartContainerRef.current, {
+            width: chartContainerRef.current.clientWidth,
+            height: 300,
+            layout: {
+                background: { type: 'solid', color: theme.palette.background.default },
+                textColor: theme.palette.text.primary,
+                attributionLogo: false,
             },
-        ],
-    };
+            grid: {
+                vertLines: { visible: true, color: theme.palette.divider },
+                horzLines: { visible: true, color: theme.palette.divider },
+            },
+            rightPriceScale: {
+                borderVisible: false,
+                autoScale: false,
+                scaleMargins: { top: 0.1, bottom: 0.1 },
+            },
+            timeScale: {
+                borderVisible: false,
+                timeVisible: true,
+                secondsVisible: false,
+            },
+        });
 
-    const options = {
-        responsive: true,
-        plugins: {
-            legend: { display: false },
-            tooltip: { mode: 'index', intersect: false },
-            annotation: {
-                annotations: {
-                    overboughtLine: {
-                        type: 'line',
-                        yMin: 70,
-                        yMax: 70,
-                        borderColor: theme.palette.error.main,
-                        borderWidth: 1,
-                        borderDash: [5, 5],
-                    },
-                    oversoldLine: {
-                        type: 'line',
-                        yMin: 30,
-                        yMax: 30,
-                        borderColor: theme.palette.success.main,
-                        borderWidth: 1,
-                        borderDash: [5, 5],
-                    },
-                },
-            },
-        },
-        scales: {
-            x: {
-                ticks: { color: theme.palette.text.secondary },
-                grid: { color: theme.palette.divider },
-            },
-            y: {
-                min: 0,
-                max: 100,
-                grid: { drawBorder: false, color: theme.palette.divider },
-                ticks: {
-                    color: theme.palette.text.secondary,
-                    callback: function (value) {
-                        if (value === 30) return "Oversold";
-                        if (value === 70) return "Overbought";
-                        return value;
-                    },
-                },
-            },
-        },
-    };
+        chartRef.current = chart;
+
+        const timeData = data.time;
+
+        // Main RSI Line
+        const rsiSeries = chart.addSeries(LineSeries, {
+            color: theme.palette.primary.main,
+            lineWidth: 1.5,
+            priceLineVisible: false,
+        });
+
+        const rsiValues = timeData.map((time, i) => ({
+            time,
+            value: data.RSI[i],
+        })).filter(p => p.value !== undefined && !isNaN(p.value));
+
+        rsiSeries.setData(rsiValues);
+
+        // Invisible boundaries to fix Y-scale
+        chart.addSeries(LineSeries, {
+            color: theme.palette.background.default,
+            lineWidth: 0.01,
+            priceLineVisible: false,
+        }).setData(timeData.map((time) => ({ time, value: 0 })));
+
+        chart.addSeries(LineSeries, {
+            color: theme.palette.background.default,
+            lineWidth: 0.01,
+            priceLineVisible: false,
+        }).setData(timeData.map((time) => ({ time, value: 100 })));
+
+        // Overbought Line (70)
+        chart.addSeries(LineSeries, {
+            color: theme.palette.error.main,
+            lineStyle: LineStyle.Dashed,
+            lineWidth: 2,
+            priceLineVisible: false,
+        }).setData(
+            timeData.map((time) => ({ time, value: 70 }))
+        );
+
+        // Oversold Line (30)
+        chart.addSeries(LineSeries, {
+            color: theme.palette.success.main,
+            lineStyle: LineStyle.Dashed,
+            lineWidth: 2,
+            priceLineVisible: false,
+        }).setData(
+            timeData.map((time) => ({ time, value: 30 }))
+        );
+
+        chart.timeScale().fitContent();
+
+        return () => {
+            if (chartRef.current) {
+                chartRef.current.remove();
+                chartRef.current = null;
+            }
+        };
+    }, [data, theme]);
 
     return (
         <Card variant="outlined" sx={{ width: '100%' }}>
@@ -96,9 +109,9 @@ const RSIChart = ({ data }) => {
                     Relative Strength Index (RSI)
                 </Typography>
                 <ChartDescription>
-                    Measures the speed and magnitude of a security's recent price changes to detect overbought or oversold conditions in the price of that security.
+                    Measures the speed and magnitude of a security's recent price changes to detect overbought or oversold conditions.
                 </ChartDescription>
-                <Line data={chartData} options={options} plugins={[chartBackgroundPlugin(theme)]}/>
+                <Box ref={chartContainerRef} />
             </CardContent>
         </Card>
     );

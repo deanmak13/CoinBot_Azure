@@ -1,126 +1,182 @@
-import React from "react";
-import { Line } from "react-chartjs-2";
-import Card from "@mui/material/Card";
-import Typography from "@mui/material/Typography";
-import CardContent from "@mui/material/CardContent";
-import {useTheme} from "@mui/material/styles";
-import { chartBackgroundPlugin } from './plugins/chartPlugins';
-
+import React, { useEffect, useRef, useState } from 'react';
+import {
+    Card, CardContent, Box, FormGroup, FormControlLabel, Checkbox, Typography
+} from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import { createChart, LineSeries, LineStyle } from 'lightweight-charts';
 import ChartTitle from "../components/chart-components/ChartTitle";
-import {ChartDescription} from "../components/chart-components/ChartDescription";
+import { ChartDescription } from "../components/chart-components/ChartDescription";
+
+const indicatorMetadata = {
+    SMA: {
+        label: 'SMA',
+        color: 'primary.main',
+        alwaysVisible: true,
+        description: 'Simple Moving Average — a basic average over time.',
+    },
+    EMA: {
+        label: 'EMA',
+        color: 'success.main',
+        alwaysVisible: true,
+        description: 'Exponential Moving Average — reacts faster to price changes.',
+    },
+    WMA: {
+        label: 'WMA',
+        color: 'secondary.main',
+        description: 'Weighted Moving Average gives more weight to recent data.',
+    },
+    KAMA: {
+        label: 'KAMA',
+        color: 'warning.main',
+        description: 'Kaufman Adaptive Moving Average adjusts for volatility.',
+    },
+    BBAND_upper: {
+        label: 'BB Upper',
+        color: 'error.light',
+        dashed: true,
+        description: 'Upper Bollinger Band showing potential resistance.',
+    },
+    BBAND_middle: {
+        label: 'BB Middle',
+        color: 'info.main',
+        description: 'Middle Bollinger Band — the baseline average.',
+    },
+    BBAND_lower: {
+        label: 'BB Lower',
+        color: 'error.dark',
+        dashed: true,
+        description: 'Lower Bollinger Band showing potential support.',
+    },
+};
 
 const MovingAveragesChart = ({ data }) => {
     const theme = useTheme();
+    const chartContainerRef = useRef();
+    const chartRef = useRef(null);
+    const [visibleIndicators, setVisibleIndicators] = useState(
+        Object.keys(indicatorMetadata).filter(key => indicatorMetadata[key].alwaysVisible)
+    );
 
-    const colorPalette = [
-        theme.palette.primary.main,     // SMA - Default primary color
-        theme.palette.secondary.main,   // WMA - Default secondary color
-        theme.palette.success.main,     // EMA - Greenish tone for bullish trends
-        theme.palette.warning.main,     // KAMA - Adaptive, using warning yellow
-        theme.palette.error.light,      // BB Upper - Lighter red for upper band
-        theme.palette.info.main,        // BB Middle - Neutral blue for mid-line
-        theme.palette.error.dark,       // BB Lower - Darker red for lower band
-    ];
+    const toggleIndicator = (key) => {
+        const { alwaysVisible } = indicatorMetadata[key];
+        if (alwaysVisible) return;
 
-
-    if (!data || !data.SMA || !data.EMA || !data.WMA) return <p>Waiting For Moving Averages Data...</p>;
-
-    const chartData = {
-        labels: data.SMA.map((_, index) => index), // Use index for now, but should be timestamps
-        datasets: [
-            {
-                label: "SMA",
-                data: data.SMA,
-                borderColor: colorPalette[0],
-                fill: false,
-            },
-            {
-                label: "WMA",
-                data: data.WMA,
-                borderColor: colorPalette[1],
-                fill: false,
-            },
-            {
-                label: "EMA",
-                data: data.EMA,
-                borderColor: colorPalette[2],
-                fill: false,
-            },
-            {
-                label: "KAMA",
-                data: data.KAMA,
-                backgroundColor: colorPalette[3],
-                fill: false,
-            },
-            {
-                label: "BB Upper",
-                data: data.BBAND_upper,
-                backgroundColor: colorPalette[4],
-                borderDash: [5, 5],
-            },
-            {
-                label: "BB Middle",
-                data: data.BBAND_middle,
-                backgroundColor: colorPalette[5],
-            },
-            {
-                label: "BB Lower",
-                data: data.BBAND_lower,
-                backgroundColor: colorPalette[6],
-                borderDash: [5, 5],
-            },
-        ],
+        setVisibleIndicators(prev =>
+            prev.includes(key) ? prev.filter(i => i !== key) : [...prev, key]
+        );
     };
 
-    const options = {
-        responsive: true,
-        plugins: {
-            legend: {
-                display: true,
-                position: 'right',
-                labels: {
-                    color: theme.palette.text.primary,
-                    font: { size: 12 },
-                },
-            },
-            tooltip: { mode: "index", intersect: true },
-        },
-        elements: {
-            line: {
-                tension: 0.3,
-                borderWidth: 1.5,
-                backgroundColor: 'transparent',
-            },
-            point: {
-                radius: 0,
-            },
-        },
-        scales: {
-            x: {
-                ticks: { color: theme.palette.text.secondary },
-                grid: { color: theme.palette.divider },
-            },
-            y: {
-                ticks: { color: theme.palette.text.secondary },
-                grid: { color: theme.palette.divider },
-            },
-        },
-    };
+    useEffect(() => {
+        if (!data?.time || !data?.SMA || !data?.EMA) return;
 
-    // return <Line data={chartData} options={options} />;
+        if (chartRef.current) {
+            chartRef.current.remove();
+            chartRef.current = null;
+        }
+
+        const chart = createChart(chartContainerRef.current, {
+            width: chartContainerRef.current.clientWidth,
+            height: 300,
+            layout: {
+                background: { type: 'solid', color: theme.palette.background.default },
+                textColor: theme.palette.text.primary,
+                attributionLogo: false,
+            },
+            grid: {
+                vertLines: { visible: true, color: theme.palette.divider },
+                horzLines: { visible: true, color: theme.palette.divider },
+            },
+            rightPriceScale: {
+                borderVisible: false,
+                scaleMargins: { top: 0.05, bottom: 0.05 },
+            },
+            timeScale: {
+                borderVisible: false,
+                timeVisible: true,
+                secondsVisible: false,
+            },
+        });
+
+        chartRef.current = chart;
+        const baseOptions = { lineWidth: 2, priceLineVisible: false };
+        const timeData = data.time;
+
+        visibleIndicators.forEach((key) => {
+            const meta = indicatorMetadata[key];
+            if (!data[key]) return;
+
+            const [palette, shade] = meta.color.split(".");
+            const color = theme.palette[palette][shade];
+
+            const series = chart.addSeries(LineSeries, {
+                ...baseOptions,
+                color,
+                lineStyle: meta.dashed ? LineStyle.Dashed : LineStyle.Solid,
+            });
+
+            const cleanData = timeData.map((time, i) => ({
+                time,
+                value: data[key][i],
+            })).filter(p => p.value > 0);
+
+            series.setData(cleanData);
+        });
+
+        chart.timeScale().fitContent();
+
+        return () => {
+            if (chartRef.current) {
+                chartRef.current.remove();
+                chartRef.current = null;
+            }
+        };
+    }, [data, theme, visibleIndicators]);
+
     return (
         <Card variant="outlined" sx={{ width: '100%' }}>
-        <CardContent>
-            <ChartTitle>
-                Moving Averages
-            </ChartTitle>
-            <ChartDescription>
-                Helps to level the price data over a specified period by creating a constantly updated average price.
-            </ChartDescription>
-            <Line data={chartData} options={options} plugins={[chartBackgroundPlugin(theme)]} />
-        </CardContent>
+            <CardContent>
+                <ChartTitle>Moving Averages</ChartTitle>
+                <ChartDescription>
+                    Toggle indicators to better understand price movement patterns.
+                </ChartDescription>
+
+                <FormGroup row sx={{ mb: 1 }}>
+                    {Object.entries(indicatorMetadata).map(([key, meta]) => {
+                        const [palette, shade] = meta.color.split(".");
+                        const color = theme.palette[palette][shade];
+                        return (
+                            <FormControlLabel
+                                key={key}
+                                control={
+                                    <Checkbox
+                                        checked={visibleIndicators.includes(key)}
+                                        disabled={meta.alwaysVisible}
+                                        onChange={() => toggleIndicator(key)}
+                                        sx={{ color: color, '&.Mui-checked': { color: color } }}
+                                    />
+                                }
+                                label={meta.label}
+                            />
+                        );
+                    })}
+                </FormGroup>
+
+                {visibleIndicators.map((key) => (
+                    indicatorMetadata[key]?.description && (
+                        <Typography
+                            key={key}
+                            variant="caption"
+                            sx={{ display: 'block', color: 'text.secondary', mb: 0.5 }}
+                        >
+                            • {indicatorMetadata[key].description}
+                        </Typography>
+                    )
+                ))}
+
+                <Box ref={chartContainerRef} />
+            </CardContent>
         </Card>
-    )
+    );
 };
 
 export default MovingAveragesChart;

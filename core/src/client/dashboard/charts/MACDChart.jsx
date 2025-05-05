@@ -1,83 +1,103 @@
-import React from 'react';
-import {Bar} from "react-chartjs-2";
-import CardContent from "@mui/material/CardContent";
-import Card from "@mui/material/Card";
-import {useTheme} from "@mui/material/styles";
-import { chartBackgroundPlugin } from './plugins/chartPlugins';
-
+import React, { useEffect, useRef } from 'react';
+import { createChart, LineSeries, HistogramSeries } from 'lightweight-charts';
+import { useTheme } from '@mui/material/styles';
+import { Card, CardContent, Box } from '@mui/material';
 import ChartTitle from "../components/chart-components/ChartTitle";
-import {ChartDescription} from "../components/chart-components/ChartDescription";
+import { ChartDescription } from "../components/chart-components/ChartDescription";
 
 const MACDChart = ({ data }) => {
     const theme = useTheme();
+    const chartContainerRef = useRef();
+    const chartRef = useRef();
 
-    const colorPalette = [
-        theme.palette.success.main,   // positive histogram bars
-        theme.palette.primary.main,   // MACD line
-        theme.palette.secondary.main, // Signal line
-        theme.palette.error.main,     // negative histogram bars
-    ];
+    useEffect(() => {
+        if (!data?.time || !data?.MACD || !data?.MACD_Signal || !data?.MACD_History) return;
 
-    if (!data || !data.MACD || !data.MACD_Signal || !data.MACD_History) return <p>Waiting For MACD Data...</p>;
+        if (chartRef.current) {
+            chartRef.current.remove();
+            chartRef.current = null;
+        }
 
-    const chartData = {
-        labels: data.MACD.map((_, index) => index), // Use index for now, but should be timestamps
-        datasets: [
-            {
-                label: "MACD",
-                type: "line",
-                data: data.MACD,
-                borderColor: colorPalette[1],
-                borderWidth: 1,
-                backgroundColor: 'transparent',
-                pointRadius: 0,
+        const chart = createChart(chartContainerRef.current, {
+            width: chartContainerRef.current.clientWidth,
+            height: 300,
+            layout: {
+                background: { type: 'solid', color: theme.palette.background.default },
+                textColor: theme.palette.text.primary,
+                attributionLogo: false,
             },
-            {
-                label: "MACD Signal",
-                type: "line",
-                data: data.MACD_Signal,
-                borderColor: colorPalette[2],
-                borderWidth: 1,
-                backgroundColor: 'transparent',
-                pointRadius: 0,
+            grid: {
+                vertLines: { visible: true, color: theme.palette.divider },
+                horzLines: { visible: true, color: theme.palette.divider },
             },
-            {
-                label: "MACD Histogram",
-                type: "bar",
-                data: data.MACD_History,
-                pointRadius: 0,
-                backgroundColor: data.MACD_History.map((val) =>
-                    val > 0 ? colorPalette[0] : colorPalette[3]
-                ),
+            rightPriceScale: {
+                borderVisible: false,
+                scaleMargins: { top: 0.2, bottom: 0.2 },
             },
+            timeScale: {
+                borderVisible: false,
+                timeVisible: true,
+                secondsVisible: false,
+            },
+        });
 
-        ],
-    };
-    const options = {
-        responsive: true,
-        elements: { line: { tension: 0.3 } },
-        plugins: {
-            legend: {
-                labels: {
-                    color: theme.palette.text.primary,
-                },
-            },
-            tooltip: {
-                mode: 'index',
-                intersect: false,
-            },
-        },
-        scales: {
-            x: {
-                grid: { color: theme.palette.divider },
-                ticks: { color: theme.palette.text.secondary },
-            },
-            y: {
-                grid: { color: theme.palette.divider },
-                ticks: { color: theme.palette.text.secondary },
-            },
-        },
-    };
+        chartRef.current = chart;
+        const timeData = data.time;
+
+        const macdValues = timeData.map((time, i) => ({
+            time,
+            value: data.MACD[i],
+        })).filter(p => p.value !== undefined && !isNaN(p.value));
+
+        const signalValues = timeData.map((time, i) => ({
+            time,
+            value: data.MACD_Signal[i],
+        })).filter(p => p.value !== undefined && !isNaN(p.value));
+
+        const histRaw = data.MACD_History.filter(v => v !== undefined && !isNaN(v));
+        const meanAbsHist = histRaw.reduce((sum, v) => sum + Math.abs(v), 0) / histRaw.length;
+        const minThreshold = meanAbsHist * 0.15;
+
+        const histogramData = timeData.map((time, i) => {
+            const value = data.MACD_History[i];
+            return {
+                time,
+                value,
+                color: value >= 0 ? theme.palette.success.main : theme.palette.error.main,
+            };
+        }).filter(p => Math.abs(p.value) >= minThreshold);
+
+        // Histogram first so it draws underneath
+        const histogramSeries = chart.addSeries(HistogramSeries, {
+            priceLineVisible: false,
+            base: 0,
+            // Optional: play with barWidth, histogramSpacing in CSS for tuning
+        });
+        histogramSeries.setData(histogramData);
+
+        const macdSeries = chart.addSeries(LineSeries, {
+            color: '#2196f3', // Blue
+            lineWidth: 1.5,
+            priceLineVisible: false,
+        });
+        macdSeries.setData(macdValues);
+
+        const signalSeries = chart.addSeries(LineSeries, {
+            color: '#e040fb', // Magenta/Purple
+            lineWidth: 1.5,
+            priceLineVisible: false,
+        });
+        signalSeries.setData(signalValues);
+
+        chart.timeScale().fitContent();
+
+        return () => {
+            if (chartRef.current) {
+                chartRef.current.remove();
+                chartRef.current = null;
+            }
+        };
+    }, [data, theme]);
 
     return (
         <Card variant="outlined" sx={{ width: '100%' }}>
@@ -88,7 +108,7 @@ const MACDChart = ({ data }) => {
                 <ChartDescription>
                     Helps identify price trends, measure trend momentum, and identify entry points for buying or selling.
                 </ChartDescription>
-                <Bar data={chartData} options={options} plugins={[chartBackgroundPlugin(theme)]} />
+                <Box ref={chartContainerRef} />
             </CardContent>
         </Card>
     );

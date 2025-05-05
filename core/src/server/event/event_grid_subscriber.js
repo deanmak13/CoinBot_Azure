@@ -1,8 +1,8 @@
-const utils = require("../utils");
+const {getLogger, convert_gmt_to_local} = require("../utils");
 const {broadcastToClients} = require('../websocket/websocket_publisher');
 const {insertDBAnalytics, readDBAnalytics} = require("../db/candle_analytics_cache");
 
-logger = utils.getLogger();
+logger = getLogger();
 
 let bufferStore={};
 const DELAY_THRESHOLD = 5;
@@ -72,6 +72,8 @@ function processEvent(data){
         logger.info(`Processing received event [EventType: ${event.type},EventId: ${eventID}]`);
         let now = Date.now();
         event.receivedAt = now;
+        let old_time = event.data.time
+        event.data.time = convert_gmt_to_local(event.data.time)
         bufferStore[eventID] = event;
         const flushedEvent = flushBuffer(now);
         if (flushedEvent) {
