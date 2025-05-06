@@ -142,8 +142,6 @@ class HistoricalMarketData{
 
   /**
    * Retrieves candlestick data for a specific product from the Coinbase API.
-   * @param {string} productID - The ID of the product.
-   * @param {number} granularity - The granularity of the candlestick data.
    * @returns
    *    time - bucket start time
    *    low - lowest price during the bucket interval
@@ -151,33 +149,26 @@ class HistoricalMarketData{
    *    open - opening price (first trade) in the bucket interval
    *    close - closing price (last trade) in the bucket interval
    *    volume - volume of trading activity during the bucket interval
+   * @param productCandleRequest
+   * @param candleHandler
    */
-  static async getProductCandles(productCandleRequest){
-    const [productID, granularity, requests, data_points_limit] = productCandleRequest.array;
-    let apiUrl = `https://api.exchange.coinbase.com/products/${productID[0]}/candles`;
-    let queryDict = {granularity: granularity};
-    try {
-      let response_data = [];
-      for (let completed_requests = 0; completed_requests < requests; completed_requests++){
-        if (completed_requests > 0) {
-          queryDict['end'] = response_data[response_data.length - 1][0] - granularity;
-          queryDict['start'] = queryDict['end'] - (299 * granularity)
-        }
-
+  async getProductCandles(productCandleRequest, endtime, starttime, candleHandler){
+    for (const productID of productCandleRequest.getProductIdList()) {
+      let apiUrl = `https://api.coinbase.com/api/v3/brokerage/products/${productID}/candles`;
+      let queryDict = {granularity: "FIVE_MINUTE", end: endtime, start: starttime};
+      try {
+        let response_data = [];
         let config = configuration(apiUrl, 'get', queryDict);
         let response = await axios(config);
         response.data.forEach(candle => {
           let productCandle = new ProductCandle(candle);
           response_data.push(productCandle);
         });
+        logger.info("Coinbase API wrapper Retrieved %d Total Product Candle Data Points", response_data.length)
+        candleHandler(response_data);
+      } catch (error) {
+        console.error(error);
       }
-      if (0 < data_points_limit && data_points_limit < response_data.length){
-          response_data = response_data.slice(0, data_points_limit);}
-      logger.info("Coinbase API wrapper Retrieved %d Total Product Candle Data Points after %d requests", response_data.length, requests)
-      let productCandles = new ProductCandleResponse().setProductCandlesList(response_data);
-      return productCandles;
-    } catch (error) {
-      console.error(error);
     }
   }
 

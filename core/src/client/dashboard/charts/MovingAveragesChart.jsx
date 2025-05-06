@@ -1,66 +1,31 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createChart, LineSeries, LineStyle } from 'lightweight-charts';
 import {
     Card, CardContent, Box, FormGroup, FormControlLabel, Checkbox, Typography
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import { createChart, LineSeries, LineStyle } from 'lightweight-charts';
 import ChartTitle from "../components/chart-components/ChartTitle";
 import { ChartDescription } from "../components/chart-components/ChartDescription";
 
 const indicatorMetadata = {
-    SMA: {
-        label: 'SMA',
-        color: 'primary.main',
-        alwaysVisible: true,
-        description: 'Simple Moving Average — a basic average over time.',
-    },
-    EMA: {
-        label: 'EMA',
-        color: 'success.main',
-        alwaysVisible: true,
-        description: 'Exponential Moving Average — reacts faster to price changes.',
-    },
-    WMA: {
-        label: 'WMA',
-        color: 'secondary.main',
-        description: 'Weighted Moving Average gives more weight to recent data.',
-    },
-    KAMA: {
-        label: 'KAMA',
-        color: 'warning.main',
-        description: 'Kaufman Adaptive Moving Average adjusts for volatility.',
-    },
-    BBAND_upper: {
-        label: 'BB Upper',
-        color: 'error.light',
-        dashed: true,
-        description: 'Upper Bollinger Band showing potential resistance.',
-    },
-    BBAND_middle: {
-        label: 'BB Middle',
-        color: 'info.main',
-        description: 'Middle Bollinger Band — the baseline average.',
-    },
-    BBAND_lower: {
-        label: 'BB Lower',
-        color: 'error.dark',
-        dashed: true,
-        description: 'Lower Bollinger Band showing potential support.',
-    },
+    SMA: { label: 'SMA', color: 'primary.main', alwaysVisible: true },
+    EMA: { label: 'EMA', color: 'success.main', alwaysVisible: true },
+    WMA: { label: 'WMA', color: 'secondary.main' },
+    KAMA: { label: 'KAMA', color: 'warning.main' },
+    BBAND_upper: { label: 'BB Upper', color: 'error.light', dashed: true },
+    BBAND_middle: { label: 'BB Middle', color: 'info.main' },
+    BBAND_lower: { label: 'BB Lower', color: 'error.dark', dashed: true },
 };
 
-const MovingAveragesChart = ({ data }) => {
+const MovingAveragesChart = ({ data, timeScaleRef }) => {
     const theme = useTheme();
     const chartContainerRef = useRef();
-    const chartRef = useRef(null);
-    const [visibleIndicators, setVisibleIndicators] = useState(
-        Object.keys(indicatorMetadata).filter(key => indicatorMetadata[key].alwaysVisible)
-    );
+    const chartRef = useRef();
+    const [visibleIndicators, setVisibleIndicators] = useState(['SMA', 'EMA']);
 
     const toggleIndicator = (key) => {
-        const { alwaysVisible } = indicatorMetadata[key];
-        if (alwaysVisible) return;
-
+        const meta = indicatorMetadata[key];
+        if (meta.alwaysVisible) return;
         setVisibleIndicators(prev =>
             prev.includes(key) ? prev.filter(i => i !== key) : [...prev, key]
         );
@@ -98,31 +63,34 @@ const MovingAveragesChart = ({ data }) => {
         });
 
         chartRef.current = chart;
-        const baseOptions = { lineWidth: 2, priceLineVisible: false };
+        const timeScale = chart.timeScale();
+        if (!timeScaleRef.current) {
+            timeScaleRef.current = timeScale;
+        } else {
+            timeScale.subscribeVisibleTimeRangeChange((range) => {
+                if (range) timeScaleRef.current.setVisibleRange(range);
+            });
+        }
+
         const timeData = data.time;
+        const baseOptions = { lineWidth: 2, priceLineVisible: false };
 
         visibleIndicators.forEach((key) => {
             const meta = indicatorMetadata[key];
             if (!data[key]) return;
-
             const [palette, shade] = meta.color.split(".");
             const color = theme.palette[palette][shade];
-
-            const series = chart.addSeries(LineSeries, {
+            chart.addSeries(LineSeries, {
                 ...baseOptions,
                 color,
                 lineStyle: meta.dashed ? LineStyle.Dashed : LineStyle.Solid,
-            });
-
-            const cleanData = timeData.map((time, i) => ({
-                time,
-                value: data[key][i],
-            })).filter(p => p.value > 0);
-
-            series.setData(cleanData);
+            }).setData(
+                timeData.map((time, i) => ({ time, value: data[key][i] }))
+                    .filter(p => p.value > 0)
+            );
         });
 
-        chart.timeScale().fitContent();
+        timeScale.scrollToPosition(0, true);
 
         return () => {
             if (chartRef.current) {
@@ -130,14 +98,14 @@ const MovingAveragesChart = ({ data }) => {
                 chartRef.current = null;
             }
         };
-    }, [data, theme, visibleIndicators]);
+    }, [data, theme, visibleIndicators, timeScaleRef]);
 
     return (
         <Card variant="outlined" sx={{ width: '100%' }}>
             <CardContent>
                 <ChartTitle>Moving Averages</ChartTitle>
                 <ChartDescription>
-                    Toggle indicators to better understand price movement patterns.
+                    Helps to level the price data over a specified period by creating a constantly updated average price.
                 </ChartDescription>
 
                 <FormGroup row sx={{ mb: 1 }}>
@@ -160,18 +128,6 @@ const MovingAveragesChart = ({ data }) => {
                         );
                     })}
                 </FormGroup>
-
-                {visibleIndicators.map((key) => (
-                    indicatorMetadata[key]?.description && (
-                        <Typography
-                            key={key}
-                            variant="caption"
-                            sx={{ display: 'block', color: 'text.secondary', mb: 0.5 }}
-                        >
-                            • {indicatorMetadata[key].description}
-                        </Typography>
-                    )
-                ))}
 
                 <Box ref={chartContainerRef} />
             </CardContent>

@@ -3,7 +3,7 @@ const args = require('minimist')(process.argv.slice(2));
 const path = require('path');
 const express = require('express');
 const {Router} = require("express");
-const {RealTimeMarketData} = require("./api/coinbase_client");
+const {RealTimeMarketData, HistoricalMarketData} = require("./api/coinbase_client");
 const {ProductCandleRequest} = require("./grpc/gen/coinbase/v1/coinbase_products_pb")
 const {handleEvents} = require("./event/event_grid_subscriber");
 const {DataPreprocessorInstance} = require("./event/data_preprocessor");
@@ -16,6 +16,7 @@ const port = process.env.WEBSITES_PORT || 8000;
 let logger = utils.getLogger();
 
 const realTimeMarketDataSocket = new RealTimeMarketData();
+const historicalMarketDataSocket = new HistoricalMarketData();
 
 function realTimeProductCandlePipeline(){
     // Creating product candle request for real time data
@@ -27,6 +28,19 @@ function realTimeProductCandlePipeline(){
     realTimeMarketDataSocket.streamProductCandleData(productCandleRequest, (candle)=>{
         DataPreprocessorInstance.getInstance().eventiseProductCandle(candle);}
     );
+}
+
+function historicalProductCandlePipeline(){
+    logger.info("Requesting historical Product Candle Data...");
+    let candleConfig = utils.getConfig("candle_data", "events.yaml");
+    let productCandleRequest = new ProductCandleRequest();
+    productCandleRequest.setProductIdList(candleConfig["product_ids"]);
+    productCandleRequest.setGranularity(5) // TODO: update this to either string, or official minutes intake
+    let endtime = Math.floor(Date.now() / 1000); // now in unix
+    let starttime = Math.floor(Date.now() / 1000) - (3 * 24 * 60 * 60); // 3 days ago
+    historicalMarketDataSocket.getProductCandles(productCandleRequest, endtime, starttime,(candle)=>{
+        DataPreprocessorInstance.getInstance().eventiseProductCandle(candle);
+    })
 }
 
 function setupEventGridRoutes() {

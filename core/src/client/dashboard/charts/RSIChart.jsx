@@ -4,7 +4,7 @@ import { Card, CardContent, Box, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { ChartDescription } from "../components/chart-components/ChartDescription";
 
-const RSIChart = ({ data }) => {
+const RSIChart = ({ data, timeScaleRef }) => {
     const theme = useTheme();
     const chartContainerRef = useRef();
     const chartRef = useRef();
@@ -42,8 +42,17 @@ const RSIChart = ({ data }) => {
         });
 
         chartRef.current = chart;
-
         const timeData = data.time;
+
+        // Sync X-axis (time) across charts
+        const timeScale = chart.timeScale();
+        if (!timeScaleRef.current) {
+            timeScaleRef.current = timeScale;
+        } else {
+            timeScale.subscribeVisibleTimeRangeChange((range) => {
+                if (range) timeScaleRef.current.setVisibleRange(range);
+            });
+        }
 
         // Main RSI Line
         const rsiSeries = chart.addSeries(LineSeries, {
@@ -59,7 +68,7 @@ const RSIChart = ({ data }) => {
 
         rsiSeries.setData(rsiValues);
 
-        // Invisible boundaries to fix Y-scale
+        // Invisible Y-bounds to lock scale
         chart.addSeries(LineSeries, {
             color: theme.palette.background.default,
             lineWidth: 0.01,
@@ -72,27 +81,24 @@ const RSIChart = ({ data }) => {
             priceLineVisible: false,
         }).setData(timeData.map((time) => ({ time, value: 100 })));
 
-        // Overbought Line (70)
+        // Overbought line at 70
         chart.addSeries(LineSeries, {
             color: theme.palette.error.main,
             lineStyle: LineStyle.Dashed,
             lineWidth: 2,
             priceLineVisible: false,
-        }).setData(
-            timeData.map((time) => ({ time, value: 70 }))
-        );
+        }).setData(timeData.map((time) => ({ time, value: 70 })));
 
-        // Oversold Line (30)
+        // Oversold line at 30
         chart.addSeries(LineSeries, {
             color: theme.palette.success.main,
             lineStyle: LineStyle.Dashed,
             lineWidth: 2,
             priceLineVisible: false,
-        }).setData(
-            timeData.map((time) => ({ time, value: 30 }))
-        );
+        }).setData(timeData.map((time) => ({ time, value: 30 })));
 
-        chart.timeScale().fitContent();
+        // Scroll to most recent data
+        timeScale.scrollToPosition(0, true);
 
         return () => {
             if (chartRef.current) {
@@ -100,7 +106,7 @@ const RSIChart = ({ data }) => {
                 chartRef.current = null;
             }
         };
-    }, [data, theme]);
+    }, [data, theme, timeScaleRef]);
 
     return (
         <Card variant="outlined" sx={{ width: '100%' }}>

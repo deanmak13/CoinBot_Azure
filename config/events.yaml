@@ -2,6 +2,9 @@
 candle_data:
   product_ids: 
     - "BTC-USD"
+    - "ETH-USD"
+    - "SOL-USD"
+    - "ADA-USD"
   event_grid.event_type: "productCandleData"
   event_grid.subscription_name: "product-candle-data"
   event_grid.subscription_endpoint: "/subscribe/candles/data"
