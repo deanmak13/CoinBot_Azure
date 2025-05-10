@@ -6,6 +6,7 @@ import {
 import { useTheme } from "@mui/material/styles";
 import ChartTitle from "../components/chart-components/ChartTitle";
 import { ChartDescription } from "../components/chart-components/ChartDescription";
+import ChartSummaryStack from "../components/chart-components/ChartSummaryStack";
 
 const indicatorMetadata = {
     SMA: { label: 'SMA', color: 'primary.main', alwaysVisible: true },
@@ -17,7 +18,7 @@ const indicatorMetadata = {
     BBAND_lower: { label: 'BB Lower', color: 'error.dark', dashed: true },
 };
 
-const MovingAveragesChart = ({ data, timeScaleRef }) => {
+const MovingAveragesChart = ({ data, timeScaleRef, summaryValue, ticker = "N/A"  }) => {
     const theme = useTheme();
     const chartContainerRef = useRef();
     const chartRef = useRef();
@@ -104,6 +105,7 @@ const MovingAveragesChart = ({ data, timeScaleRef }) => {
         <Card variant="outlined" sx={{ width: '100%' }}>
             <CardContent>
                 <ChartTitle>Moving Averages</ChartTitle>
+                <ChartSummaryStack latestValue={summaryValue} chipLabel={ticker}/>
                 <ChartDescription>
                     Helps to level the price data over a specified period by creating a constantly updated average price.
                 </ChartDescription>

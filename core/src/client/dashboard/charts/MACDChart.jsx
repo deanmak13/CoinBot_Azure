@@ -4,8 +4,9 @@ import { useTheme } from '@mui/material/styles';
 import { Card, CardContent, Box } from '@mui/material';
 import ChartTitle from "../components/chart-components/ChartTitle";
 import { ChartDescription } from "../components/chart-components/ChartDescription";
+import ChartSummaryStack from "../components/chart-components/ChartSummaryStack";
 
-const MACDChart = ({ data, timeScaleRef }) => {
+const MACDChart = ({ data, timeScaleRef, summaryValue }) => {
     const theme = useTheme();
     const chartContainerRef = useRef();
     const chartRef = useRef();
@@ -107,6 +108,7 @@ const MACDChart = ({ data, timeScaleRef }) => {
                 <ChartTitle>
                     Moving Average Convergence/Divergence (MACD)
                 </ChartTitle>
+                <ChartSummaryStack latestValue={summaryValue}/>
                 <ChartDescription>
                     Helps identify price trends, measure trend momentum, and identify entry points for buying or selling.
                 </ChartDescription>

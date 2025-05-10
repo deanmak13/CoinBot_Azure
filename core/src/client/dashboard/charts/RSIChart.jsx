@@ -3,8 +3,9 @@ import { createChart, LineSeries, LineStyle } from 'lightweight-charts';
 import { Card, CardContent, Box, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { ChartDescription } from "../components/chart-components/ChartDescription";
+import ChartSummaryStack from "../components/chart-components/ChartSummaryStack";
 
-const RSIChart = ({ data, timeScaleRef }) => {
+const RSIChart = ({ data, timeScaleRef, summaryValue }) => {
     const theme = useTheme();
     const chartContainerRef = useRef();
     const chartRef = useRef();
@@ -114,6 +115,7 @@ const RSIChart = ({ data, timeScaleRef }) => {
                 <Typography component="h2" variant="subtitle2" sx={{ color: 'text.primary' }} gutterBottom>
                     Relative Strength Index (RSI)
                 </Typography>
+                <ChartSummaryStack latestValue={summaryValue}/>
                 <ChartDescription>
                     Measures the speed and magnitude of a security's recent price changes to detect overbought or oversold conditions.
                 </ChartDescription>
