@@ -41,10 +41,15 @@ function insertDBAnalytics(analyticsData) {
  * Reads all rows from the 'candle' table.
  * @returns {Array<Object>} - Array of candle rows.
  */
-function readDBAnalytics(){
+function readDBAnalytics(ticker, secondsAgo){
     try {
-        const sql = DB.prepare(`SELECT * FROM candle ORDER BY candle.time ASC`);
-        let result = sql.all();
+        let secondsNow = Math.floor(Date.now() / 1000);
+        if (secondsAgo <= 0){
+            secondsAgo = secondsNow;
+        }
+        let startTime = secondsNow - secondsAgo;
+        const sql = DB.prepare("SELECT * FROM candle WHERE id = ? AND time > ? ORDER BY time ASC");
+        const result = sql.all(ticker, startTime);
         return collapseObjectArrayToListValueObject(result);
     } catch (e) {
         logger.error(`Failed to read candle analytics from database: ${e}`);

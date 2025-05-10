@@ -1,10 +1,11 @@
-
 candle_data:
   product_ids: 
     - "BTC-USD"
     - "ETH-USD"
     - "SOL-USD"
     - "ADA-USD"
+  historical_lookback_minutes: 1440
+  granularity_minutes: 5  # THIS IS CONSTANT, PER COINBASE REALTIME API
   event_grid.event_type: "productCandleData"
   event_grid.subscription_name: "product-candle-data"
   event_grid.subscription_endpoint: "/subscribe/candles/data"
@@ -15,3 +16,28 @@ candle_analytics:
   event_grid.subscription_name: "product-candle-analysis-data"
   event_grid.subscription_endpoint: "/subscribe/candles/analytics"
   event_grid.port: 8000
+
+historical_candle_data:
+  product_ids:
+    - "BTC-USD"
+    - "ETH-USD"
+    - "SOL-USD"
+    - "ADA-USD"
+  granularity_minutes: 5
+  event_grid.event_type: "historicalProductCandleData"
+  event_grid.subscription_name: "product-candle-data"
+  event_grid.subscription_endpoint: "/subscribe/candles/data"
+  event_grid.port: 5000
+  time_ranges:
+    - label: "1 Day Ago"
+      value: "1d"
+    - label: "1 Week Ago"
+      value: "1w"
+    - label: "1 Month Ago"
+      value: "1mo"
+    - label: "3 Months Ago"
+      value: "3mo"
+    - label: "6 Months Ago"
+      value: "6mo"
+    - label: "1 Year Ago"
+      value: "1y"

@@ -1,8 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
-const subscribeToWebsocketPublisher = (url) => {
-    const [data, setData] = useState(null);
-
+const subscribeToWebsocketPublisher = (url, dataHandler) => {
     useEffect(() => {
         const ws = new WebSocket(url);
 
@@ -13,7 +11,7 @@ const subscribeToWebsocketPublisher = (url) => {
         ws.onmessage = (event) => {
             const parsedData = JSON.parse(event.data);
             console.debug("Received Data via websocket:", parsedData);
-            setData(parsedData);
+            dataHandler(parsedData);
         };
 
         ws.onclose = () => {
@@ -23,9 +21,7 @@ const subscribeToWebsocketPublisher = (url) => {
         return () => {
             ws.close();
         };
-    }, [url]);
-
-    return data;
+    }, [url, dataHandler]);
 };
 
 export default subscribeToWebsocketPublisher;

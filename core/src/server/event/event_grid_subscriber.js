@@ -1,4 +1,4 @@
-const {getLogger, convert_gmt_to_local} = require("../utils");
+const {getLogger, convertGmtToLocal} = require("../utils");
 const {broadcastToClients} = require('../websocket/websocket_publisher');
 const {insertDBAnalytics, readDBAnalytics} = require("../db/candle_analytics_cache");
 
@@ -44,7 +44,7 @@ function flushBuffer(now){
             if (!event) {
                 continue;
             }
-            let elapsedSecondsInBuffer =  (((now - event.receivedAt) % 60000) / 1000).toFixed(0);
+            let elapsedSecondsInBuffer = Math.floor((now - event.receivedAt) / 1000);
             if (elapsedSecondsInBuffer >= DELAY_THRESHOLD){
                 logger.info(`Flushing event from buffer [Event I.D: ${eventID}] (time threshold met, waited ${elapsedSecondsInBuffer} seconds)`);
                 delete bufferStore[eventID];
@@ -69,16 +69,15 @@ function processEvent(data){
     const event = data[0];
     const eventID = event.id;
     if (event.id) {
-        logger.info(`Processing received event [EventType: ${event.type},EventId: ${eventID}]`);
+        logger.info(`Processing received event [EventType: ${event.eventType},EventId: ${eventID}]`);
         let now = Date.now();
         event.receivedAt = now;
-        let old_time = event.data.time
-        event.data.time = convert_gmt_to_local(event.data.time)
+        event.data.time = convertGmtToLocal(event.data.time)
         bufferStore[eventID] = event;
         const flushedEvent = flushBuffer(now);
         if (flushedEvent) {
             insertDBAnalytics(flushedEvent.data);
-            const storedData = readDBAnalytics();
+            const storedData = readDBAnalytics(event.data.id, 0);
             broadcastToClients(storedData, flushedEvent.eventType, flushedEvent.id)
         }
         return

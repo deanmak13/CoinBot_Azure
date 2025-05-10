@@ -27,13 +27,35 @@ function getConfig(configName, configFile) {
     return config[configName];
 }
 
-function convert_gmt_to_local(timeInSeconds) {
+function convertGmtToLocal(timeInSeconds) {
     const utcDate = new Date(timeInSeconds * 1000); // convert to ms
     const offsetMinutes = utcDate.getTimezoneOffset(); // In minutes, negative for GMT+
     return Math.floor((utcDate.getTime() - offsetMinutes * 60 * 1000) / 1000); // back to seconds
 }
 
+function convertDynamicTimeRangeToSeconds(value) {
+    const match = value.match(/^(\d+)([a-zA-Z]+)$/);
+    if (!match) return null;
+
+    const num = parseInt(match[1]);
+    const unit = match[2];
+
+    const unitToSeconds = {
+        d: 86400,
+        w: 7 * 86400,
+        mo: 30 * 86400,
+        y: 365 * 86400,
+    };
+
+    return unitToSeconds[unit] ? num * unitToSeconds[unit] : null;
+}
+
+function unixNow(){
+    return Math.floor(Date.now() / 1000)
+}
+
+
 const GRPC_COMMUNICATION_CHANNEL = getConfig('communication_channel', 'grpc.yaml');
 
 
-module.exports = {convert_gmt_to_local, getConfig, getLogger, GRPC_COMMUNICATION_CHANNEL}
+module.exports = {convertGmtToLocal, convertDynamicTimeRangeToSeconds, getConfig, getLogger, unixNow, GRPC_COMMUNICATION_CHANNEL}

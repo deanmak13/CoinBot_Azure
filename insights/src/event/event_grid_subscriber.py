@@ -98,6 +98,13 @@ def process_ordered_event(event):
                 product_candle = dict_to_product_candle(data)
                 product_candle_analysis = update_technical_indicators(product_candle)
                 DataPreprocessor().eventise_product_candle_analysis(event_id, product_candle_analysis)
+            case EventType.HISTORICAL_CANDLE:
+               _logger.info(f"Processing {len(data)} {EventType.HISTORICAL_CANDLE} event type. [Event I.D: {event_id}]")
+               if isinstance(data, dict):
+                   for candle_data in data.values():
+                       product_candle = dict_to_product_candle(candle_data)
+                       product_candle_analysis = update_technical_indicators(product_candle)
+                       DataPreprocessor().eventise_product_candle_analysis(event_id, product_candle_analysis)
             case _:
                 _logger.info("Handling a general event...")
     except Exception as e:

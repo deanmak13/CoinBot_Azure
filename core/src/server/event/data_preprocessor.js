@@ -33,7 +33,16 @@ class DataPreprocessor{
         // Generate a monotonic ULID.
         let id = generateUlid();
         let event = createEvent(id, eventType, subject, candleJSON);
-        publishEvent(event);
+        publishEvent(event, eventType);
+    }
+
+    eventiseHistoricalProductCandle(candleBatchJSON){
+        let eventType = EventType.HISTORICAL_CANDLE;
+        let subject = "core/src/event/data_preprocessor/eventiseHistoricalProductCandle";
+        // Generate a monotonic ULID.
+        let id = generateUlid();
+        let event = createEvent(id, eventType, subject, candleBatchJSON);
+        publishEvent(event, eventType);
     }
 }
 

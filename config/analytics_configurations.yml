@@ -1,2 +1,14 @@
-# TODO: store analytics related configurations here
-# including feature settings like periods and time windows, to be read from here into code.
+candle_data_analytics:
+  analytics_store_max_size: 50
+  BBANDS:
+    timeperiod: 2
+    nbdevup: 2.0
+    nbdevdn: 2.0
+    matype: 0
+  MACD:
+    timeperiod: 2
+    fastperiod: 12
+    slowperiod: 26
+    signalperiod: 9
+  MovingAverages:
+    timeperiod: 2

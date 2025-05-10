@@ -33,8 +33,8 @@ function createEvent(id, type, subject, data){
   return {id: `${id}`, eventType: type, data: data, dataVersion: "1.0", subject: subject, eventTime: new Date().toISOString()}
 }
 
-async function publishEvent(event) {
-    const client = EventGridClientFactory.getClient(EventType.CANDLE);
+async function publishEvent(event, eventType) {
+    const client = EventGridClientFactory.getClient(eventType);
     try {
         await client.send([event]);
         logger.info(`Published to EventGrid successfully [EventType:${event["eventType"]},EventID:${event["id"]}]`);
