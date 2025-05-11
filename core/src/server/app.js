@@ -8,7 +8,7 @@ const {ProductCandleRequest} = require("./grpc/gen/coinbase/v1/coinbase_products
 const {handleEvents} = require("./event/event_grid_subscriber");
 const {DataPreprocessorInstance} = require("./event/data_preprocessor");
 const {setupWebSocketServer, broadcastToClients} = require("./websocket/websocket_publisher");
-const {readDBAnalytics} = require("./db/candle_analytics_cache");
+const {readDBAnalytics, readDBAnalyticsMetrics} = require("./db/candle_analytics_cache");
 
 const app = express();
 const port = process.env.WEBSITES_PORT || 8000;
@@ -21,7 +21,7 @@ let logger = utils.getLogger();
 const realTimeMarketDataSocket = new RealTimeMarketData();
 const historicalMarketDataSocket = new HistoricalMarketData();
 
-function realTimeProductCandlePipeline(){
+function streamRealTimeProductCandleData(){
     // Creating product candle request for real time data
     logger.info("Requesting real time Product Candle Data...");
     let productCandleRequest = new ProductCandleRequest();
@@ -33,7 +33,7 @@ function realTimeProductCandlePipeline(){
     );
 }
 
-async function historicalProductCandlePipeline() {
+async function batchDeliverHistoricalProductCandleData(startTime, endTime, granularityMinutes) {
     // Test connection first
     logger.info("Testing Coinbase API connection...");
     const connected = await historicalMarketDataSocket.testApiConnection();
@@ -45,13 +45,9 @@ async function historicalProductCandlePipeline() {
 
     // Proceed to request Product Candle Data
     logger.info("Requesting Historical Product Candle Data...");
-    let granularityMinutes = historicalCandleConfig["granularity_minutes"]
     let productCandleRequest = new ProductCandleRequest();
     productCandleRequest.setProductIdList(historicalCandleConfig["product_ids"]);
     productCandleRequest.setGranularity(granularityMinutes)
-    let endTime = utils.unixNow();
-    let secondsAgo = utils.convertDynamicTimeRangeToSeconds(historicalCandleConfig?.time_ranges?.[0]?.value || null);
-    let startTime = endTime - secondsAgo;
 
     await historicalMarketDataSocket.fetchProductCandleData(productCandleRequest, endTime, startTime, (candleBatch, batchProductId) => {
         for (const candle of candleBatch) {
@@ -93,25 +89,47 @@ function setupFrontEndRoutes() {
         }
     })
 
-    app.get('/api/latestAnalytics', (req, res) => {
-        const { ticker, range: timeRange } = req.query;
+    app.get('/api/latestAnalytics', async (req, res) => {
+        const {ticker, range: timeRange} = req.query;
+        const granularityMinutes = historicalCandleConfig["granularity_minutes"]; //TODO: Move this to front-end [difficulty=complex, due to 350 coinbase API candle limit]
         if (!ticker || !timeRange) {
-            return res.status(400).json({ error: "Missing 'ticker' or 'range' query param" });
+            return res.status(400).json({error: "Missing 'ticker' or 'range' query param"});
         }
 
-        if (!candleConfig["product_ids"].includes(ticker) && !historicalCandleConfig["product_ids"].includes(ticker)){
-            return res.status(404).json({ error: `Ticker '${ticker}' not supported` });
+        if (!candleConfig["product_ids"].includes(ticker) && !historicalCandleConfig["product_ids"].includes(ticker)) {
+            return res.status(404).json({error: `Ticker '${ticker}' not supported`});
         }
 
         let timeRangeSeconds = utils.convertDynamicTimeRangeToSeconds(timeRange);
         if (!timeRangeSeconds) {
-            return res.status(400).json({ error: "Invalid time range format" });
+            return res.status(400).json({error: "Invalid time range format"});
         }
 
+        const endTime = utils.unixNow();
+        let startTime = utils.getTimeFromXSecondsAgo(timeRangeSeconds, endTime);
+
         try {
-            const storedData = readDBAnalytics(ticker, timeRangeSeconds);
+            let { count: storedDataCount } = readDBAnalyticsMetrics(ticker, startTime);
+            const expectedCandleCount = Math.floor((timeRangeSeconds / (granularityMinutes * 60)));
+            const expectedApiCalls = Math.ceil(expectedCandleCount / 350); // TODO - store this 350 max candles as a config constant
+            const timePartition = timeRangeSeconds/expectedApiCalls;
+
+            // Asking the API for historical data if we don't have it in cache
+            if (storedDataCount < expectedCandleCount) {
+                // evenly distributing the apiCalls across time. Making calls in parallel
+                let batchEndTime = endTime;
+                const promises = [];
+                for (let i=0; i<expectedApiCalls; i++) {
+                    let batchStartTime = batchEndTime - timePartition;
+                    promises.push(batchDeliverHistoricalProductCandleData(batchStartTime, batchEndTime, granularityMinutes));
+                    batchEndTime = batchStartTime;
+                }
+                await Promise.all(promises);
+            }
+
+            const storedData = readDBAnalytics(ticker, startTime);
             res.json(storedData);
-        } catch (err){
+        } catch (err) {
             console.error("DB read error:", err);
             res.status(500).json({ error: "Internal server error" });
         }
@@ -128,11 +146,8 @@ async function startServer() {
     await setupEventGridRoutes();
     setupFrontEndRoutes();
 
-    // Ensure historical data is loaded first
-    await historicalProductCandlePipeline();
-
     // Begin pulling real time product candle data
-    await realTimeProductCandlePipeline();
+    await streamRealTimeProductCandleData();
 
     // Create the HTTP server with WebSocket support
     const server = setupWebSocketServer(app);

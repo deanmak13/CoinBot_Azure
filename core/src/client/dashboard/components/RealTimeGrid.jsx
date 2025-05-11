@@ -5,6 +5,8 @@ import Box from "@mui/material/Box";
 import {Typography} from "@mui/material";
 import Header from "./Header";
 import DashboardLayout from "./DashboardLayout";
+import Stack from "@mui/material/Stack";
+import SelectMenu from "./SelectMenu";
 
 async function fetchConfigs(setAvailableTickers, setTimeRanges) {
     try {
@@ -65,13 +67,24 @@ export default function RealTimeGrid() {
 
     return (
         <Box sx={{ width: '100%', maxWidth: { sm: '100%', md: '1700px' } }}>
-            {/* Selector Panel */}
-            <Header availableTickers={availableTickers} ticker={ticker} setTicker={setTicker} timeRanges={timeRanges} timeRange={timeRange} setTimeRange={setTimeRange}></Header>
-
             {/* Charts */}
+            <Stack
+                direction="row"
+                sx={{
+                    display: { xs: 'none', md: 'flex' },
+                    width: '100%',
+                    alignItems: { xs: 'flex-start', md: 'center' },
+                    justifyContent: 'space-between',
+                    maxWidth: { sm: '100%', md: '1700px' },
+                    pt: 1.5,
+                }}
+                spacing={2}
+            >
             <Typography component="h2" variant="h6" sx={{ mb: 2 }}>
                 Real Time Analysis
             </Typography>
+            <SelectMenu availableTickers={availableTickers} ticker={ticker} setTicker={setTicker} timeRange={timeRange} setTimeRange={setTimeRange} timeRanges={timeRanges} ></SelectMenu>
+            </Stack>
             <DashboardLayout data={data} ticker={ticker} timeScaleRef={timeScaleRef}/>
         </Box>
     );

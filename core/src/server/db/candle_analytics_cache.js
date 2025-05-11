@@ -41,27 +41,36 @@ function insertDBAnalytics(analyticsData) {
  * Reads all rows from the 'candle' table.
  * @returns {Array<Object>} - Array of candle rows.
  */
-function readDBAnalytics(ticker, secondsAgo){
+function readDBAnalytics(ticker, startTime){
     try {
-        let secondsNow = Math.floor(Date.now() / 1000);
-        if (secondsAgo <= 0){
-            secondsAgo = secondsNow;
-        }
-        let startTime = secondsNow - secondsAgo;
         const sql = DB.prepare("SELECT * FROM candle WHERE id = ? AND time > ? ORDER BY time ASC");
         const result = sql.all(ticker, startTime);
-        return collapseObjectArrayToListValueObject(result);
+        return collapseObjectArrayToValueListObject(result);
     } catch (e) {
         logger.error(`Failed to read candle analytics from database: ${e}`);
     }
 }
 
 /**
- * transform data from [ { key: 1, value: 'hello' }, { key: 2, value: 'world' } ]
- * to {key: [1, 2], value: ['hello', 'world']}
+ * Reads all rows from the 'candle' table.
+ * @returns {{count, earliestTime, latestTime}} - Object of analytics metrics
+ */
+function readDBAnalyticsMetrics(ticker, startTime){
+    try {
+        const sql = DB.prepare("SELECT count(*) as count, MIN(time) as earliestTime, MAX(time) as latestTime FROM candle WHERE id = ? AND time > ? ORDER BY time ASC");
+        const result = sql.all(ticker, startTime);
+        return result[0];
+    } catch (e) {
+        logger.error(`Failed to read candle analytics from database: ${e}`);
+    }
+}
+
+/**
+ * transform data from [ { id: 1, column1: 'hello' }, { id: 2, column1: 'world' } ]
+ * to {id: [1, 2], column1: ['hello', 'world']}
  * @returns {Object}
  */
-function collapseObjectArrayToListValueObject(results) {
+function collapseObjectArrayToValueListObject(results) {
     return results.reduce((acc, cur) => {
         for (const [key, value] of Object.entries(cur)) {
             if (!acc[key]) acc[key] = [];
@@ -71,4 +80,4 @@ function collapseObjectArrayToListValueObject(results) {
     }, {});
 }
 
-module.exports = {insertDBAnalytics, readDBAnalytics}
+module.exports = {insertDBAnalytics, readDBAnalytics, readDBAnalyticsMetrics}

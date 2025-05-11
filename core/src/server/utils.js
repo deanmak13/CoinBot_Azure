@@ -2,6 +2,7 @@ const log4js = require("log4js");
 const fs = require('fs');
 const yaml = require('js-yaml');
 const path = require('path');
+const utils = require("../client/utils");
 
 function getLogger(){
     log4js.configure({
@@ -27,6 +28,14 @@ function getConfig(configName, configFile) {
     return config[configName];
 }
 
+function getTimeFromXSecondsAgo(secondsAgo, now = unixNow()) {
+    let secondsNow = Math.floor(Date.now() / 1000);
+    if (secondsAgo <= 0){
+        secondsAgo = secondsNow;
+    }
+    return secondsNow - secondsAgo;
+}
+
 function convertGmtToLocal(timeInSeconds) {
     const utcDate = new Date(timeInSeconds * 1000); // convert to ms
     const offsetMinutes = utcDate.getTimezoneOffset(); // In minutes, negative for GMT+
@@ -50,6 +59,10 @@ function convertDynamicTimeRangeToSeconds(value) {
     return unitToSeconds[unit] ? num * unitToSeconds[unit] : null;
 }
 
+function sleep(milliseconds){
+    return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
 function unixNow(){
     return Math.floor(Date.now() / 1000)
 }
@@ -58,4 +71,4 @@ function unixNow(){
 const GRPC_COMMUNICATION_CHANNEL = getConfig('communication_channel', 'grpc.yaml');
 
 
-module.exports = {convertGmtToLocal, convertDynamicTimeRangeToSeconds, getConfig, getLogger, unixNow, GRPC_COMMUNICATION_CHANNEL}
+module.exports = {convertGmtToLocal, convertDynamicTimeRangeToSeconds, getConfig, getLogger, getTimeFromXSecondsAgo, sleep, unixNow, GRPC_COMMUNICATION_CHANNEL}

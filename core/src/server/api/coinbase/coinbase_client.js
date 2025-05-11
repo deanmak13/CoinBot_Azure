@@ -95,7 +95,7 @@ class HistoricalMarketData {
 
       try {
         const config = await generateApiConfiguration(apiUri, HttpMethod.GET, queryDict);
-        logger.info(`Fetching candle data for ${productID} from ${startTime} to ${endTime}`);
+        logger.info(`Fetching historical candle data for ${productID} from ${startTime} to ${endTime}`);
 
         const response = await axios(config);
         let candleBatchCount = 0;
@@ -104,15 +104,15 @@ class HistoricalMarketData {
           const candles = response.data.candles;
           candleBatchHandler(candles, productID);
           candleBatchCount = candles.length;
-          logger.info("Retrieved %d candle data points for %s", candleBatchCount, productID);
+          logger.info("Retrieved %d historical candle data points for %s", candleBatchCount, productID);
         } else {
-          logger.warn("Unexpected response format from Coinbase API for %s", productID);
+          logger.warn("Unexpected response format from Coinbase API for historical %s", productID);
           console.log("Response data:", response.data);
         }
       } catch (error) {
-        logger.error("Error fetching candle data for %s: %s", productID, error.message);
+        logger.error("Error fetching historical candle data for %s: %s", productID, error.message);
         if (error.response) {
-          logger.error("Response status: %s, data: %s", error.response.status, JSON.stringify(error.response.data));
+          logger.error("Historical API Response Status: %s, data: %s", error.response.status, JSON.stringify(error.response.data));
         }
       }
     }
