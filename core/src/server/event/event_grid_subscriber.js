@@ -5,14 +5,15 @@ const {insertDBAnalytics, readDBAnalytics} = require("../db/candle_analytics_cac
 logger = getLogger();
 
 let bufferStore={};
-const DELAY_THRESHOLD = 5;
-const BUFFER_SIZE_THRESHOLD = 10;
+const DELAY_THRESHOLD = 2;
+const BUFFER_SIZE_THRESHOLD = 2;
 
 function handleEvents(req, res){
     try{
         const data = req.body;
         let validationResponse  = validateEventGrid(req);
         if (validationResponse ){
+            logger.info(`Responding to Event Grid validation request`);
             res.status(200).json(validationResponse)
             return;
         }
@@ -66,21 +67,22 @@ function flushBuffer(now){
 }
 
 function processEvent(data){
-    const event = data[0];
-    const eventID = event.id;
-    if (event.id) {
-        logger.info(`Processing received event [EventType: ${event.eventType},EventId: ${eventID}]`);
-        let now = Date.now();
-        event.receivedAt = now;
-        event.data.time = convertGmtToLocal(event.data.time)
-        bufferStore[eventID] = event;
-        const flushedEvent = flushBuffer(now);
-        if (flushedEvent) {
-            insertDBAnalytics(flushedEvent.data);
-            const storedData = readDBAnalytics(event.data.id, 0);
-            broadcastToClients(storedData, flushedEvent.eventType, flushedEvent.id)
+    for (const event of data){
+        const eventID = event.id;
+        if (event.id) {
+            logger.info(`Processing received event [EventType: ${event.eventType},EventId: ${eventID}]`);
+            let now = Date.now();
+            event.receivedAt = now;
+            event.data.time = convertGmtToLocal(event.data.time)
+            bufferStore[eventID] = event;
+            const flushedEvent = flushBuffer(now);
+            if (flushedEvent) {
+                insertDBAnalytics(flushedEvent.data);
+                const storedData = readDBAnalytics(event.data.id, 0);
+                broadcastToClients(storedData, flushedEvent.eventType, flushedEvent.id)
+            }
+            return
         }
-        return
     }
     logger.warn("Attempted to process received event: EventID missing")
 }

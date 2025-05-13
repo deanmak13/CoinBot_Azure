@@ -57,7 +57,7 @@ function readDBAnalytics(ticker, startTime){
  */
 function readDBAnalyticsMetrics(ticker, startTime){
     try {
-        const sql = DB.prepare("SELECT count(*) as count, MIN(time) as earliestTime, MAX(time) as latestTime FROM candle WHERE id = ? AND time > ? ORDER BY time ASC");
+        const sql = DB.prepare("SELECT count, earliestTime, latestTime FROM candle_db_metrics WHERE id = ? AND time > ? ORDER BY time ASC");
         const result = sql.all(ticker, startTime);
         return result[0];
     } catch (e) {

@@ -33,6 +33,39 @@ CREATE TABLE candle (
 
 CREATE INDEX idx_candle_time ON candle(time);
 
+CREATE TABLE candle_db_metrics (
+   id TEXT NOT NULL,
+   time INTEGER NOT NULL,
+   count INTEGER,
+   earliestTime INTEGER,
+   latestTime INTEGER,
+   db_entry_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+   PRIMARY KEY (id, time)
+);
+
+CREATE TRIGGER insert_into_candle_db_metrics
+    AFTER INSERT ON candle
+BEGIN
+    -- Insert if not exists
+    INSERT OR IGNORE INTO candle_db_metrics (
+        id, time, count, earliestTime, latestTime
+    ) VALUES (
+                 NEW.id,
+                 NEW.time,
+                 (SELECT COUNT(*) FROM candle WHERE id = NEW.id AND time = NEW.time),
+                 (SELECT MIN(time) FROM candle WHERE id = NEW.id),
+                 (SELECT MAX(time) FROM candle WHERE id = NEW.id)
+             );
+
+    -- Update if exists
+    UPDATE candle_db_metrics
+    SET
+        count = (SELECT COUNT(*) FROM candle WHERE id = NEW.id AND time = NEW.time),
+        earliestTime = (SELECT MIN(time) FROM candle WHERE id = NEW.id),
+        latestTime = (SELECT MAX(time) FROM candle WHERE id = NEW.id)
+    WHERE id = NEW.id AND time = NEW.time;
+END;
+
 CREATE TABLE trigger_log (
     id TEXT,
     new_time INTEGER,
@@ -44,31 +77,53 @@ CREATE TABLE trigger_log (
 CREATE TRIGGER purge_data_after_insert
     AFTER INSERT ON candle
 BEGIN
-    -- Log each row that will be deleted
+    -- Log rows being purged (based on db_entry_time)
     INSERT INTO trigger_log (id, new_time, old_time, event)
-    SELECT NEW.id, NEW.time, time, 'purge_data_after_insert fired'
-    FROM candle
-    WHERE id = NEW.id
-      AND NEW.time - time > 24 * 3600;
+    SELECT NEW.id, NEW.time, m.db_entry_time, 'purge_data_after_insert fired'
+    FROM candle_db_metrics m
+    WHERE m.id = NEW.id AND m.time = NEW.time
+      AND (strftime('%s', CURRENT_TIMESTAMP) - strftime('%s', m.db_entry_time)) > 168 * 3600;
 
-    -- Delete each row older than 24hrs
+    -- Delete from candle (if metrics entry confirms expiration)
     DELETE FROM candle
-    WHERE candle.id = NEW.id
-      AND NEW.time - candle.time > 24 * 3600;
+    WHERE id = NEW.id
+      AND time = NEW.time
+      AND EXISTS (
+        SELECT 1 FROM candle_db_metrics
+        WHERE id = NEW.id AND time = NEW.time
+          AND (strftime('%s', CURRENT_TIMESTAMP) - strftime('%s', db_entry_time)) > 168 * 3600
+    );
+
+    -- Delete corresponding metrics row
+    DELETE FROM candle_db_metrics
+    WHERE id = NEW.id
+      AND time = NEW.time
+      AND (strftime('%s', CURRENT_TIMESTAMP) - strftime('%s', db_entry_time)) > 168 * 3600;
 END;
 
 CREATE TRIGGER purge_data_after_update
     AFTER UPDATE ON candle
 BEGIN
-    -- Log each row that will be deleted
+    -- Log rows being purged (based on db_entry_time)
     INSERT INTO trigger_log (id, new_time, old_time, event)
-    SELECT NEW.id, NEW.time, time, 'purge_data_after_update fired'
-    FROM candle
-    WHERE id = NEW.id
-      AND NEW.time - time > 24 * 3600;
+    SELECT NEW.id, NEW.time, m.db_entry_time, 'purge_data_after_update fired'
+    FROM candle_db_metrics m
+    WHERE m.id = NEW.id AND m.time = NEW.time
+      AND (strftime('%s', CURRENT_TIMESTAMP) - strftime('%s', m.db_entry_time)) > 168 * 3600;
 
-    -- Delete each row that is older than 24hrs
+    -- Delete from candle
     DELETE FROM candle
-    WHERE candle.id = NEW.id
-      AND NEW.time - candle.time > 24 * 3600;
+    WHERE id = NEW.id
+      AND time = NEW.time
+      AND EXISTS (
+        SELECT 1 FROM candle_db_metrics
+        WHERE id = NEW.id AND time = NEW.time
+          AND (strftime('%s', CURRENT_TIMESTAMP) - strftime('%s', db_entry_time)) > 168 * 3600
+    );
+
+    -- Delete from candle_db_metrics
+    DELETE FROM candle_db_metrics
+    WHERE id = NEW.id
+      AND time = NEW.time
+      AND (strftime('%s', CURRENT_TIMESTAMP) - strftime('%s', db_entry_time)) > 168 * 3600;
 END;

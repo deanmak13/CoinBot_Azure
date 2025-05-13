@@ -36,7 +36,7 @@ def handle_events():
 def validate_event_grid(req):
     # Handle Event Grid validation
     if req.headers.get('aeg-event-type') == 'SubscriptionValidation':
-        validation_event = req.json[0]
+        validation_event = req.get_json()[0]
         validation_code = validation_event['data']['validationCode']
         return jsonify({'validationResponse': validation_code})
     return None
@@ -100,11 +100,20 @@ def process_ordered_event(event):
                 DataPreprocessor().eventise_product_candle_analysis(event_id, product_candle_analysis)
             case EventType.HISTORICAL_CANDLE:
                _logger.info(f"Processing {len(data)} {EventType.HISTORICAL_CANDLE} event type. [Event I.D: {event_id}]")
-               if isinstance(data, dict):
-                   for candle_data in data.values():
-                       product_candle = dict_to_product_candle(candle_data)
-                       product_candle_analysis = update_technical_indicators(product_candle)
-                       DataPreprocessor().eventise_product_candle_analysis(event_id, product_candle_analysis)
+               if isinstance(data, list):
+                   data_iterable = data
+               elif isinstance(data, dict):
+                   data_iterable = data.values()
+               else:
+                   _logger.error("Unexpected data format in HISTORICAL_CANDLE event.")
+                   return
+
+               product_candle_analysis_batch = []
+               for candle_data in data_iterable:
+                   product_candle = dict_to_product_candle(candle_data)
+                   product_candle_analysis = update_technical_indicators(product_candle)
+                   product_candle_analysis_batch.append(product_candle_analysis)
+               DataPreprocessor().eventise_product_candle_analysis_batch(event_id, product_candle_analysis_batch)
             case _:
                 _logger.info("Handling a general event...")
     except Exception as e:

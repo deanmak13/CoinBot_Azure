@@ -28,3 +28,10 @@ class DataPreprocessor:
         subject = "insights/src/event/prepare_product_candle_analysis_event"
         event = create_event(event_id, event_type, subject, analysis_data)
         publish_event(event)
+
+    def eventise_product_candle_analysis_batch(self, event_id, analysis_data_batch):
+        _logger.info(f"Eventising analysis data batch of size: {len(analysis_data_batch)}")
+        event_type = EventType.CANDLE_ANALYTICS
+        subject = "insights/src/event/prepare_product_candle_analysis_event"
+        event = create_event(event_id, event_type, subject, analysis_data_batch)
+        publish_event(event)

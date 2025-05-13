@@ -12,6 +12,7 @@ candle_data:
   event_grid.port: 5000
 
 candle_analytics:
+  core_handler.payload_mb_limit: 5
   event_grid.event_type: "productCandleDataAnalytics"
   event_grid.subscription_name: "product-candle-analysis-data"
   event_grid.subscription_endpoint: "/subscribe/candles/analytics"
@@ -24,6 +25,7 @@ historical_candle_data:
     - "SOL-USD"
     - "ADA-USD"
   granularity_minutes: 5
+  delivery_cooldown_seconds: 60
   event_grid.event_type: "historicalProductCandleData"
   event_grid.subscription_name: "product-candle-data"
   event_grid.subscription_endpoint: "/subscribe/candles/data"
@@ -31,13 +33,19 @@ historical_candle_data:
   time_ranges:
     - label: "1 Day Ago"
       value: "1d"
+      granularity_minutes: 5 # expected candle count = 288
     - label: "1 Week Ago"
       value: "1w"
+      granularity_minutes: 15 # expected candle count = 672
     - label: "1 Month Ago"
       value: "1mo"
+      granularity_minutes: 60 # expected candle count = 720
     - label: "3 Months Ago"
       value: "3mo"
+      granularity_minutes: 360 # expected candle count = 360
     - label: "6 Months Ago"
       value: "6mo"
+      granularity_minutes: 720 # expected candle count = 360
     - label: "1 Year Ago"
       value: "1y"
+      granularity_minutes: 1440 # expected candle count = 365

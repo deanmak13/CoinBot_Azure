@@ -3,22 +3,31 @@ import { useEffect, useRef, useState } from "react";
 import * as React from "react";
 import Box from "@mui/material/Box";
 import {Typography} from "@mui/material";
-import Header from "./Header";
 import DashboardLayout from "./DashboardLayout";
 import Stack from "@mui/material/Stack";
 import SelectMenu from "./SelectMenu";
 
-async function fetchConfigs(setAvailableTickers, setTimeRanges) {
+async function fetchConfigs(setAvailableTickers, setTimeRanges, setTicker, setTimeRange) {
     try {
         const [candleRes, historicalRes] = await Promise.all([
             fetch("/api/config?configName=candle_data&configFileName=events.yaml"),
             fetch("/api/config?configName=historical_candle_data&configFileName=events.yaml")
         ]);
+
         const candleDataConfig = await candleRes.json();
         const historicalCandleConfig = await historicalRes.json();
 
-        setAvailableTickers(candleDataConfig.product_ids || []);
-        setTimeRanges(historicalCandleConfig.time_ranges || []);
+        const availableTickers = candleDataConfig.product_ids || [];
+        const timeRangesRaw = historicalCandleConfig.time_ranges || [];
+        const timeRanges = timeRangesRaw.map(({ label, value }) => ({ label, value }));
+
+        setAvailableTickers(availableTickers);
+        setTimeRanges(timeRanges);
+
+        // Use the local vars, not the React state vars
+        if (availableTickers.length > 0) setTicker(availableTickers[0]);
+        if (timeRanges.length > 0) setTimeRange(timeRanges[0].value);
+
     } catch (err) {
         console.error("Error fetching config:", err);
     }
@@ -43,19 +52,29 @@ export default function RealTimeGrid() {
 
     // Fetch config from backend
     useEffect(() => {
-        fetchConfigs(setAvailableTickers, setTimeRanges);
+        fetchConfigs(setAvailableTickers, setTimeRanges, setTicker, setTimeRange);
     }, []);
 
-    // setting default ticker and time range
+    // setting default ticker and time range. ensuring they've been fetched first
     useEffect(() => {
-        initializeDefaults(availableTickers, timeRanges, ticker, timeRange, setTicker, setTimeRange);
+        const ready =
+            Array.isArray(availableTickers) && availableTickers.length > 0 &&
+            Array.isArray(timeRanges) && timeRanges.length > 0 &&
+            ticker != null && timeRange != null;
+
+        if (ready) {
+            initializeDefaults(availableTickers, timeRanges, ticker, timeRange, setTicker, setTimeRange);
+        }
     }, [availableTickers, timeRanges, ticker, timeRange]);
 
     // Fetch initial snapshot of data from cache
     useEffect(() => {
-        fetch(`/api/latestAnalytics?ticker=${ticker}&range=${timeRange}`)
-            .then(res => res.json())
-            .then(setData);
+        if (ticker && timeRange) {
+            fetch(`/api/latestAnalytics?ticker=${ticker}&range=${timeRange}`)
+                .then(res => res.json())
+                .then(setData)
+                .catch(err => console.error("Failed to fetch analytics:", err));
+        }
     }, [ticker, timeRange]);
 
     // Listen for live updates
