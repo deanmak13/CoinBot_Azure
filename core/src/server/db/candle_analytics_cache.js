@@ -39,12 +39,17 @@ function insertDBAnalytics(analyticsData) {
 
 /**
  * Reads all rows from the 'candle' table.
- * @returns {Array<Object>} - Array of candle rows.
+ * @returns {{}} - Array of candle rows.
  */
 function readDBAnalytics(ticker, startTime){
     try {
         const sql = DB.prepare("SELECT * FROM candle WHERE id = ? AND time > ? ORDER BY time ASC");
         const result = sql.all(ticker, startTime);
+
+        if (result.length === 0){
+            return {}
+        }
+
         return collapseObjectArrayToValueListObject(result);
     } catch (e) {
         logger.error(`Failed to read candle analytics from database: ${e}`);
@@ -53,15 +58,21 @@ function readDBAnalytics(ticker, startTime){
 
 /**
  * Reads all rows from the 'candle' table.
- * @returns {{count, earliestTime, latestTime}} - Object of analytics metrics
+ * @returns {Record<string, number | bigint | string | Uint8Array>} - Object of analytics metrics
  */
 function readDBAnalyticsMetrics(ticker, startTime){
     try {
         const sql = DB.prepare("SELECT count, earliestTime, latestTime FROM candle_db_metrics WHERE id = ? AND time > ? ORDER BY time ASC");
         const result = sql.all(ticker, startTime);
+
+        if (result.length === 0){
+            return {}
+        }
+
         return result[0];
     } catch (e) {
         logger.error(`Failed to read candle analytics from database: ${e}`);
+        return {}
     }
 }
 

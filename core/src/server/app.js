@@ -185,6 +185,8 @@ function setupFrontEndRoutes() {
             }
 
             const storedData = readDBAnalytics(ticker, startTime);
+            console.log(`dean THIS IS STORED DATA COUNT:`)
+            console.log(storedData);
             logger.info(`Responding to /api/latestAnalytics request [ticker:${ticker}, timeRange: ${timeRangeValue}]`);
             res.json(storedData);
         } catch (err) {
