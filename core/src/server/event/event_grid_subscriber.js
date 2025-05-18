@@ -1,12 +1,13 @@
-const {getLogger, convertGmtToLocal} = require("../utils");
+const {getLogger, convertGmtToUKLocal} = require("../utils");
 const {broadcastToClients} = require('../websocket/websocket_publisher');
-const {insertDBAnalytics, readDBAnalytics} = require("../db/candle_analytics_cache");
+const {insertDBAnalytics, insertDBAnalyticsBatch, readDBAnalytics} = require("../db/candle_analytics_cache");
+const {EventType} = require("./model/EventType");
 
-logger = getLogger();
+const logger = getLogger();
 
 let bufferStore={};
-const DELAY_THRESHOLD = 2;
-const BUFFER_SIZE_THRESHOLD = 2;
+const DELAY_THRESHOLD = 10;
+const BUFFER_SIZE_THRESHOLD = 5;
 
 function handleEvents(req, res){
     try{
@@ -54,7 +55,7 @@ function flushBuffer(now){
         }
 
         // Option 2: If no stale event, but the buffer is too large, flush the event with the smallest ID.
-        if (Object.keys(bufferStore).length > BUFFER_SIZE_THRESHOLD) {
+        if (Object.keys(bufferStore).length >= BUFFER_SIZE_THRESHOLD) {
             let oldestEventID = sortedIDs[0];
             const event = bufferStore[oldestEventID];
             if (event){
@@ -66,25 +67,64 @@ function flushBuffer(now){
     }
 }
 
-function processEvent(data){
-    for (const event of data){
+function processEvent(data) {
+    for (const event of data) {
         const eventID = event.id;
-        if (event.id) {
-            logger.info(`Processing received event [EventType: ${event.eventType},EventId: ${eventID}]`);
-            let now = Date.now();
-            event.receivedAt = now;
-            event.data.time = convertGmtToLocal(event.data.time)
+        if (!eventID) {
+            logger.warn("Attempted to process received event: EventID missing");
+            continue;
+        }
+        const eventType = event.eventType;
+        if (!eventType){
+            logger.warn("Attempted to process received event: EventType missing");
+            continue;
+        }
+
+        logger.info(`Processing received event [EventType: ${eventType}, EventId: ${eventID}]`);
+        const now = Date.now();
+        event.receivedAt = now;
+
+        let receivedData = event.data;
+        let cachedData = {};
+        if (eventType===EventType.CANDLE_ANALYTICS_BATCH) {
+            logger.info(`Immediate processing: skipping buffer for batched data event [Event I.D: ${eventID}]`)
+            if (receivedData.length === 0) {
+                logger.warn(`Received empty array for event.data [EventId: ${eventID}]`);
+                continue;
+            }
+
+            for (const candle of receivedData) {
+                if (candle?.time) {
+                    candle.time = convertGmtToUKLocal(candle.time);
+                } else {
+                    logger.warn(`Candle missing time field: ${JSON.stringify(candle)}`);
+                }
+            }
+
+            insertDBAnalyticsBatch(receivedData);
+            cachedData = readDBAnalytics(receivedData[0]?.id, 0, receivedData[0]?.granularity_mins);
+            broadcastToClients(cachedData, event.eventType, event.id);
+        } else if (eventType===EventType.CANDLE_ANALYTICS) {
             bufferStore[eventID] = event;
             const flushedEvent = flushBuffer(now);
-            if (flushedEvent) {
-                insertDBAnalytics(flushedEvent.data);
-                const storedData = readDBAnalytics(event.data.id, 0);
-                broadcastToClients(storedData, flushedEvent.eventType, flushedEvent.id)
+            if (!flushedEvent) continue;
+
+            receivedData = flushedEvent.data;
+            if (!receivedData.id || !receivedData.time) {
+                logger.warn(`Invalid candle object: missing id or time [EventId: ${eventID}]`);
+                continue;
             }
-            return
+
+            receivedData.time = convertGmtToUKLocal(receivedData.time);
+            insertDBAnalytics(receivedData);
+            cachedData = readDBAnalytics(receivedData.id, 0, receivedData.granularity_mins);
+            broadcastToClients(cachedData, flushedEvent.eventType, flushedEvent.id);
+        } else {
+            logger.warn(`Unexpected flushed data format: ${typeof receivedData} [EventId: ${eventID}]`);
+            continue;
         }
     }
-    logger.warn("Attempted to process received event: EventID missing")
 }
+
 
 module.exports = {handleEvents}

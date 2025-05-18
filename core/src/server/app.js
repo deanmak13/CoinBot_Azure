@@ -23,15 +23,18 @@ let logger = utils.getLogger();
 const realTimeMarketDataSocket = new RealTimeMarketData();
 const historicalMarketDataSocket = new HistoricalMarketData();
 
-function streamRealTimeProductCandleData(){
+function streamRealTimeProductCandleData() {
     // Creating product candle request for real time data
     logger.info("Requesting real time Product Candle Data...");
     let productCandleRequest = new ProductCandleRequest();
     productCandleRequest.setProductIdList(candleConfig["product_ids"]);
+    const granularityMins = candleConfig["granularity_minutes"];
     
     // Requesting and sending real time product candle data to EventGrid
-    realTimeMarketDataSocket.streamProductCandleData(productCandleRequest, (candle)=>{
-        DataPreprocessorInstance.getInstance().eventiseProductCandle(candle);}
+    realTimeMarketDataSocket.streamProductCandleData(productCandleRequest, (candle) => {
+            candle.granularity_mins = granularityMins;
+            DataPreprocessorInstance.getInstance().eventiseProductCandle(candle);
+        }
     );
 }
 
@@ -54,6 +57,7 @@ async function batchDeliverHistoricalProductCandleData(startTime, endTime, granu
     await historicalMarketDataSocket.fetchProductCandleData(productCandleRequest, endTime, startTime, (candleBatch, batchProductId) => {
         for (const candle of candleBatch) {
             candle.product_id = batchProductId;
+            candle.granularity_mins = granularityMinutes;
         }
         DataPreprocessorInstance.getInstance().eventiseHistoricalProductCandle(candleBatch);
     })
@@ -64,7 +68,7 @@ function isInHistoricalDeliveryCooldown(ticker, range) {
     const now = Date.now();
     const lastCall = historicalDeliveryCooldownCache[key] || 0;
 
-    if (now - lastCall < COOLDOWN_SECONDS) {
+    if ((now - lastCall) / 1000 < COOLDOWN_SECONDS) {
         logger.info(`API call cooldown phase for Ticker ${ticker} in Time Range ${range}`)
         return true;
     }
@@ -79,20 +83,15 @@ function setupEventGridRoutes() {
     const MAX_SIZE_BYTES = candleAnalyticsConfig['core_handler.payload_mb_limit'] * 1024 * 1024; // MB to KB
 
     eventGridRouter.use((req, res, next) => {
-        logger.info(`[EventGridRouter] ${req.method} ${req.originalUrl} - Headers: ${JSON.stringify(req.headers)}`);
-        next();
-    });
-
-    eventGridRouter.use((req, res, next) => {
         const size = Number(req.headers['content-length'] || 0);
         if (size > MAX_SIZE_BYTES) {
             logger.warn(`Blocked Event Grid payload: ${Math.round(size / 1024)} KB exceeds 5MB limit`);
-            return res.status(413).send({ error: 'Payload too large' });
+            return res.status(413).send({error: 'Payload too large'});
         }
         next();
     });
 
-    eventGridRouter.use(express.json({ limit: '5MB' }));
+    eventGridRouter.use(express.json({limit: '5MB'}));
 
     logger.info(`Registering Event Grid route: POST ${candleAnalyticsSubEndPoint}`);
     eventGridRouter.post(candleAnalyticsSubEndPoint, handleEvents);
@@ -107,7 +106,7 @@ function setupFrontEndRoutes() {
 
     app.get('/api/config', (req, res) => {
         try {
-            const { configName, configFileName } = req.query;
+            const {configName, configFileName} = req.query;
 
             if (!configName || !configFileName) {
                 const error = new Error("Missing 'config' or 'configFileName' query param - /api/config");
@@ -122,7 +121,7 @@ function setupFrontEndRoutes() {
 
         } catch (err) {
             logger.error("Config Util Error:", err);
-            res.status(err.statusCode || 500).json({ error: err.message || "Internal server error" });
+            res.status(err.statusCode || 500).json({error: err.message || "Internal server error"});
         }
     });
 
@@ -148,7 +147,7 @@ function setupFrontEndRoutes() {
         const time_ranges = historicalCandleConfig["time_ranges"];
         for (let range_config of time_ranges) {
             const range_value = range_config["value"];
-            if (timeRangeSeconds === utils.convertDynamicTimeRangeToSeconds(range_value)){
+            if (timeRangeSeconds === utils.convertDynamicTimeRangeToSeconds(range_value)) {
                 granularityMinutes = range_config["granularity_minutes"];
                 logger.info(`Using granularity ${granularityMinutes} minutes for ticker ${ticker} - /api/latestAnalytics`);
             }
@@ -159,7 +158,7 @@ function setupFrontEndRoutes() {
         let startTime = utils.getTimeFromXSecondsAgo(timeRangeSeconds, endTime);
 
         try {
-            const metrics = readDBAnalyticsMetrics(ticker, startTime);
+            const metrics = readDBAnalyticsMetrics(ticker, startTime, granularityMinutes);
             const storedDataCount = (metrics && typeof metrics.count === 'number') ? metrics.count : 0; // Handle case where metrics is null/undefined or count is invalid
 
             const expectedCandleCount = Math.floor(timeRangeSeconds / (granularityMinutes * 60));
@@ -184,14 +183,12 @@ function setupFrontEndRoutes() {
                 await Promise.all(promises);
             }
 
-            const storedData = readDBAnalytics(ticker, startTime);
-            console.log(`dean THIS IS STORED DATA COUNT:`)
-            console.log(storedData);
+            const storedData = readDBAnalytics(ticker, startTime, granularityMinutes);
             logger.info(`Responding to /api/latestAnalytics request [ticker:${ticker}, timeRange: ${timeRangeValue}]`);
             res.json(storedData);
         } catch (err) {
             console.error("DB read error:", err);
-            res.status(500).json({ error: "Internal server error" });
+            res.status(500).json({error: "Internal server error"});
         }
     });
 

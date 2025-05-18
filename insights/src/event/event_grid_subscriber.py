@@ -3,7 +3,7 @@ import threading
 from flask import request, jsonify
 import utils
 from event.data_preprocessor import dict_to_product_candle, DataPreprocessor
-from analytics.candle_technical_indicators import update_technical_indicators
+from analytics.candle_technical_indicators import update_technical_indicators, update_technical_indicators_batch
 from event.model.EventType import EventType
 
 _logger = utils.get_logger("Insights")
@@ -52,13 +52,22 @@ def process_event(events):
             if not event_id:
                 _logger.error(f"Event missing id: {event}")
                 continue
+            event_type = event.get('eventType')
+            if not event_type:
+                _logger.error(f"Event missing type: {event}")
             event['received_at'] = now
-            buffer_store[event_id] = event
 
-        # Process flushed events from the buffer based on our criteria. Flush one event per call; subsequent invocations can flush more.
-        flushed_event = flush_buffer(now)
-        if flushed_event:
-            process_ordered_event(flushed_event)
+            match event_type:
+                case EventType.CANDLE:
+                    buffer_store[event_id] = event
+                    flushed_event = flush_buffer(now)
+                    if flushed_event:
+                        process_ordered_event(flushed_event)
+                case EventType.HISTORICAL_CANDLE:
+                    _logger.info(f"Immediate processing: skipping buffer for batched data event [Event I.D: {event_id}]")
+                    process_batched_event(event)
+                case _:
+                    _logger.info(f"Received an unexpected event type [Event Type: {event_type},Event I.D: {event_id}]")
 
 def flush_buffer(now):
     global buffer_store
@@ -92,29 +101,31 @@ def process_ordered_event(event):
     try:
         data = event.get('data')
         event_id = event.get('id')
-        match event.get('eventType'):
-            case EventType.CANDLE:
-                _logger.info(f"Processing {EventType.CANDLE} event type. [Event I.D: {event_id}]")
-                product_candle = dict_to_product_candle(data)
-                product_candle_analysis = update_technical_indicators(product_candle)
-                DataPreprocessor().eventise_product_candle_analysis(event_id, product_candle_analysis)
-            case EventType.HISTORICAL_CANDLE:
-               _logger.info(f"Processing {len(data)} {EventType.HISTORICAL_CANDLE} event type. [Event I.D: {event_id}]")
-               if isinstance(data, list):
-                   data_iterable = data
-               elif isinstance(data, dict):
-                   data_iterable = data.values()
-               else:
-                   _logger.error("Unexpected data format in HISTORICAL_CANDLE event.")
-                   return
+        _logger.info(f"Processing {EventType.CANDLE} event type. [Event I.D: {event_id}]")
+        product_candle = dict_to_product_candle(data)
+        product_candle_analysis = update_technical_indicators(product_candle)
+        DataPreprocessor().eventise_product_candle_analysis(event_id, product_candle_analysis)
+    except Exception as e:
+        _logger.exception(f"Exception encountered processing ordered events: {e}")
 
-               product_candle_analysis_batch = []
-               for candle_data in data_iterable:
-                   product_candle = dict_to_product_candle(candle_data)
-                   product_candle_analysis = update_technical_indicators(product_candle)
-                   product_candle_analysis_batch.append(product_candle_analysis)
-               DataPreprocessor().eventise_product_candle_analysis_batch(event_id, product_candle_analysis_batch)
-            case _:
-                _logger.info("Handling a general event...")
+def process_batched_event(event):
+    try:
+        data = event.get('data')
+        event_id = event.get('id')
+        _logger.info(f"Processing {len(data)} {EventType.HISTORICAL_CANDLE} event type. [Event I.D: {event_id}]")
+        if isinstance(data, list):
+            data_iterable = data
+        elif isinstance(data, dict):
+            data_iterable = data.values()
+        else:
+            _logger.error("Unexpected data format in HISTORICAL_CANDLE event.")
+            return
+
+        product_candle_batch_list = []
+        for candle_data in data_iterable:
+            product_candle = dict_to_product_candle(candle_data)
+            product_candle_batch_list.append(product_candle)
+        product_candle_analysis_batch = update_technical_indicators_batch(product_candle_batch_list)
+        DataPreprocessor().eventise_product_candle_analysis_batch(event_id, product_candle_analysis_batch)
     except Exception as e:
         _logger.exception(f"Exception encountered processing ordered events: {e}")

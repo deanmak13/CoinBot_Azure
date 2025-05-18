@@ -2,6 +2,7 @@ const log4js = require("log4js");
 const fs = require('fs');
 const yaml = require('js-yaml');
 const path = require('path');
+const { DateTime } = require('luxon');
 const utils = require("../client/utils");
 
 function getLogger(){
@@ -36,10 +37,11 @@ function getTimeFromXSecondsAgo(secondsAgo, now = unixNow()) {
     return secondsNow - secondsAgo;
 }
 
-function convertGmtToLocal(timeInSeconds) {
-    const utcDate = new Date(timeInSeconds * 1000); // convert to ms
-    const offsetMinutes = utcDate.getTimezoneOffset(); // In minutes, negative for GMT+
-    return Math.floor((utcDate.getTime() - offsetMinutes * 60 * 1000) / 1000); // back to seconds
+function convertGmtToUKLocal(timeInSeconds) {
+    return DateTime
+        .fromSeconds(timeInSeconds, { zone: 'utc' })
+        .setZone('Europe/London')
+        .toSeconds();
 }
 
 function convertDynamicTimeRangeToSeconds(value) {
@@ -71,4 +73,4 @@ function unixNow(){
 const GRPC_COMMUNICATION_CHANNEL = getConfig('communication_channel', 'grpc.yaml');
 
 
-module.exports = {convertGmtToLocal, convertDynamicTimeRangeToSeconds, getConfig, getLogger, getTimeFromXSecondsAgo, sleep, unixNow, GRPC_COMMUNICATION_CHANNEL}
+module.exports = {convertGmtToUKLocal, convertDynamicTimeRangeToSeconds, getConfig, getLogger, getTimeFromXSecondsAgo, sleep, unixNow, GRPC_COMMUNICATION_CHANNEL}

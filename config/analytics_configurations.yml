@@ -1,5 +1,5 @@
 candle_data_analytics:
-  analytics_store_max_size: 50
+  analytics_store_max_size: 100
   BBANDS:
     timeperiod: 2
     nbdevup: 2.0

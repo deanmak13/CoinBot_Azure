@@ -7,6 +7,8 @@ CREATE TABLE candle (
     close REAL NOT NULL,
     volume REAL NOT NULL,
 
+    granularity_mins INTEGER NOT NULL,
+
     SMA REAL,
     WMA REAL,
     EMA REAL,
@@ -28,19 +30,19 @@ CREATE TABLE candle (
     BBAND_middle REAL,
     BBAND_lower REAL,
 
-    PRIMARY KEY (id, time)
+    PRIMARY KEY (id, time, granularity_mins)
 );
 
 CREATE INDEX idx_candle_time ON candle(time);
 
 CREATE TABLE candle_db_metrics (
    id TEXT NOT NULL,
-   time INTEGER NOT NULL,
+   granularity_mins INTEGER NOT NULL,
    count INTEGER,
    earliestTime INTEGER,
    latestTime INTEGER,
    db_entry_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-   PRIMARY KEY (id, time)
+   PRIMARY KEY (id, granularity_mins)
 );
 
 CREATE TRIGGER insert_into_candle_db_metrics
@@ -48,22 +50,23 @@ CREATE TRIGGER insert_into_candle_db_metrics
 BEGIN
     -- Insert if not exists
     INSERT OR IGNORE INTO candle_db_metrics (
-        id, time, count, earliestTime, latestTime
+        id, granularity_mins, count, earliestTime, latestTime
     ) VALUES (
                  NEW.id,
-                 NEW.time,
-                 (SELECT COUNT(*) FROM candle WHERE id = NEW.id AND time = NEW.time),
-                 (SELECT MIN(time) FROM candle WHERE id = NEW.id),
-                 (SELECT MAX(time) FROM candle WHERE id = NEW.id)
+                 NEW.granularity_mins,
+                 (SELECT COUNT(*) FROM candle WHERE id = NEW.id AND granularity_mins = NEW.granularity_mins),
+                 (SELECT MIN(time) FROM candle WHERE id = NEW.id AND granularity_mins = NEW.granularity_mins),
+                 (SELECT MAX(time) FROM candle WHERE id = NEW.id AND granularity_mins = NEW.granularity_mins)
              );
 
-    -- Update if exists
+    -- Always update the existing row
     UPDATE candle_db_metrics
     SET
-        count = (SELECT COUNT(*) FROM candle WHERE id = NEW.id AND time = NEW.time),
-        earliestTime = (SELECT MIN(time) FROM candle WHERE id = NEW.id),
-        latestTime = (SELECT MAX(time) FROM candle WHERE id = NEW.id)
-    WHERE id = NEW.id AND time = NEW.time;
+        count = (SELECT COUNT(*) FROM candle WHERE id = NEW.id AND granularity_mins = NEW.granularity_mins),
+        earliestTime = (SELECT MIN(time) FROM candle WHERE id = NEW.id AND granularity_mins = NEW.granularity_mins),
+        latestTime = (SELECT MAX(time) FROM candle WHERE id = NEW.id AND granularity_mins = NEW.granularity_mins),
+        db_entry_time = CURRENT_TIMESTAMP
+    WHERE id = NEW.id AND granularity_mins = NEW.granularity_mins;
 END;
 
 CREATE TABLE trigger_log (
@@ -81,23 +84,25 @@ BEGIN
     INSERT INTO trigger_log (id, new_time, old_time, event)
     SELECT NEW.id, NEW.time, m.db_entry_time, 'purge_data_after_insert fired'
     FROM candle_db_metrics m
-    WHERE m.id = NEW.id AND m.time = NEW.time
+    WHERE m.id = NEW.id AND m.granularity_mins = NEW.granularity_mins
       AND (strftime('%s', CURRENT_TIMESTAMP) - strftime('%s', m.db_entry_time)) > 168 * 3600;
 
     -- Delete from candle (if metrics entry confirms expiration)
     DELETE FROM candle
     WHERE id = NEW.id
       AND time = NEW.time
+      AND granularity_mins = NEW.granularity_mins
       AND EXISTS (
         SELECT 1 FROM candle_db_metrics
-        WHERE id = NEW.id AND time = NEW.time
+        WHERE id = NEW.id
+          AND granularity_mins = NEW.granularity_mins
           AND (strftime('%s', CURRENT_TIMESTAMP) - strftime('%s', db_entry_time)) > 168 * 3600
     );
 
     -- Delete corresponding metrics row
     DELETE FROM candle_db_metrics
     WHERE id = NEW.id
-      AND time = NEW.time
+      AND granularity_mins = NEW.granularity_mins
       AND (strftime('%s', CURRENT_TIMESTAMP) - strftime('%s', db_entry_time)) > 168 * 3600;
 END;
 
@@ -108,22 +113,24 @@ BEGIN
     INSERT INTO trigger_log (id, new_time, old_time, event)
     SELECT NEW.id, NEW.time, m.db_entry_time, 'purge_data_after_update fired'
     FROM candle_db_metrics m
-    WHERE m.id = NEW.id AND m.time = NEW.time
+    WHERE m.id = NEW.id AND m.granularity_mins = NEW.granularity_mins
       AND (strftime('%s', CURRENT_TIMESTAMP) - strftime('%s', m.db_entry_time)) > 168 * 3600;
 
     -- Delete from candle
     DELETE FROM candle
     WHERE id = NEW.id
       AND time = NEW.time
+      AND granularity_mins = NEW.granularity_mins
       AND EXISTS (
         SELECT 1 FROM candle_db_metrics
-        WHERE id = NEW.id AND time = NEW.time
+        WHERE id = NEW.id
+          AND granularity_mins = NEW.granularity_mins
           AND (strftime('%s', CURRENT_TIMESTAMP) - strftime('%s', db_entry_time)) > 168 * 3600
     );
 
     -- Delete from candle_db_metrics
     DELETE FROM candle_db_metrics
     WHERE id = NEW.id
-      AND time = NEW.time
+      AND granularity_mins = NEW.granularity_mins
       AND (strftime('%s', CURRENT_TIMESTAMP) - strftime('%s', db_entry_time)) > 168 * 3600;
 END;

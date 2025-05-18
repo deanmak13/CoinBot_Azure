@@ -21,6 +21,8 @@ message ProductCandle{
     double close = 6;
     // volume of trading activity during the bucket interval
     double volume = 7;
+    // granularity of the candle in minutes
+    int32 granularity_mins = 8;
 }
 
 message ProductCandleRequest{

@@ -14,6 +14,7 @@ candle_data:
 candle_analytics:
   core_handler.payload_mb_limit: 5
   event_grid.event_type: "productCandleDataAnalytics"
+  event_grid.batch_event_type: "productCandleDataAnalyticsBatch"
   event_grid.subscription_name: "product-candle-analysis-data"
   event_grid.subscription_endpoint: "/subscribe/candles/analytics"
   event_grid.port: 8000
@@ -25,7 +26,7 @@ historical_candle_data:
     - "SOL-USD"
     - "ADA-USD"
   granularity_minutes: 5
-  delivery_cooldown_seconds: 60
+  delivery_cooldown_seconds: 5
   event_grid.event_type: "historicalProductCandleData"
   event_grid.subscription_name: "product-candle-data"
   event_grid.subscription_endpoint: "/subscribe/candles/data"

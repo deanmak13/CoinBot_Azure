@@ -10,10 +10,14 @@ ANALYTICS_CONFIG = utils.get_config("candle_data_analytics", "analytics_configur
 
 candle_store = {}
 
+def generate_store_key(product_id, granularity_mins):
+    return f"{product_id}{granularity_mins}"
+
 def upsert_candle_queue(candle):
-    if candle.product_id not in candle_store.keys():
-        candle_store[candle.product_id] = SortedList(key=lambda candle: candle.start)
-    candle_queue = candle_store[candle.product_id]
+    queue_key = generate_store_key(candle.product_id, candle.granularity_mins)
+    if queue_key not in candle_store.keys():
+        candle_store[queue_key] = SortedList(key=lambda candle: candle.start)
+    candle_queue = candle_store[queue_key]
     index = candle_queue.bisect_left(candle)
     if index < len(candle_queue) and candle_queue[index].start == candle.start:
         candle_queue.pop(index)
@@ -21,10 +25,11 @@ def upsert_candle_queue(candle):
         candle_queue.pop(0)
     candle_queue.add(candle)
 
+# NOTE: THIS WORKS ONLY IF SENDING IN WHAT SHOULD BE THE LATEST CANDLE DATA. OTHERWISE, THE LATEST CANDLE DATA IN CACHE WILL BE SENT OUT, WHILE CANDLE PASSED IN HERE IS SIMPLY STASHED AT THE BACK OF QUEUE
 def update_technical_indicators(latest_candle_data):
     upsert_candle_queue(latest_candle_data)
 
-    inputs = get_ohlcv_inputs(latest_candle_data.product_id)
+    inputs = get_ohlcv_inputs(latest_candle_data.product_id, latest_candle_data.granularity_mins)
     technical_indicators = get_cleaned_ohlcv(inputs) | calculate_moving_averages(inputs) | calculate_bands(inputs) | calculate_candlestick_patterns(inputs) | calculate_momentum_indicators(inputs)
 
     latest_indicator_values = {}
@@ -33,6 +38,14 @@ def update_technical_indicators(latest_candle_data):
             latest_indicator_values[key] = values[-1]
 
     return latest_indicator_values
+
+def update_technical_indicators_batch(batch_candle_data):
+    sorted_batch_data = sorted(batch_candle_data, key=lambda x: x.start)
+    analysis_batch = []
+    for latest_candle_data in sorted_batch_data:
+        latest_analysis = update_technical_indicators(latest_candle_data)
+        analysis_batch.append(latest_analysis)
+    return analysis_batch
 
 # Aligned with Trend Analysis
 def calculate_moving_averages(inputs):
@@ -84,24 +97,36 @@ def calculate_candlestick_patterns(inputs):
 
 # Returning numpy ohlcv, not to be used for inputs
 def get_cleaned_ohlcv(inputs):
-    # Define which keys are numeric, as stacking with non-numerics results in string casting on all
-    numeric_keys = [key for key in inputs.keys() if key != 'id']
-    ohlcv_data = numpy.column_stack(([inputs[key] for key in numeric_keys]))
+    numeric_keys = [key for key in inputs if key not in ['id']]
+    if not numeric_keys:
+        _logger.warn("No numeric keys found in inputs; skipping indicator calculations.")
+        return {}
+
+    try:
+        ohlcv_data = numpy.column_stack([inputs[key] for key in numeric_keys])
+    except Exception as e:
+        _logger.error(f"Failed to build column stack from OHLCV inputs: {e}")
+        return {}
+
     cleaned = clean_calc_outputs(ohlcv_data, numeric_keys)
-    # Add back the string id
     cleaned['id'] = inputs['id'].tolist()
     return cleaned
 
-def get_ohlcv_inputs(product_id):
-    if product_id not in candle_store:
+def get_ohlcv_inputs(product_id, granularity_mins):
+    store_key = generate_store_key(product_id, granularity_mins)
+    if store_key not in candle_store:
         return {}
-    return {'id': numpy.array([candle.product_id for candle in candle_store[product_id]]),
-            'time': numpy.array([candle.start for candle in candle_store[product_id]]),
-            'low': numpy.array([candle.low for candle in candle_store[product_id]]),
-            'high': numpy.array([candle.high for candle in candle_store[product_id]]),
-            'open': numpy.array([candle.open for candle in candle_store[product_id]]),
-            'close': numpy.array([candle.close for candle in candle_store[product_id]]),
-            'volume': numpy.array([candle.volume for candle in candle_store[product_id]])}
+    candle_queue = candle_store[store_key]
+    if not candle_queue:
+        return {}
+    return {'id': numpy.array([candle.product_id for candle in candle_queue]),
+            'time': numpy.array([candle.start for candle in candle_queue]),
+            'low': numpy.array([candle.low for candle in candle_queue]),
+            'high': numpy.array([candle.high for candle in candle_queue]),
+            'open': numpy.array([candle.open for candle in candle_queue]),
+            'close': numpy.array([candle.close for candle in candle_queue]),
+            'volume': numpy.array([candle.volume for candle in candle_queue]),
+            'granularity_mins': numpy.array([candle.granularity_mins for candle in candle_queue])}
 
 def clean_calc_outputs(combined_array, array_columns):
     if not numpy.isnan(combined_array).all():
