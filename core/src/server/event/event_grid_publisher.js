@@ -4,6 +4,8 @@ const utils = require("../utils");
 const path = require('path');
 const {EventType} = require("./model/EventType");
 require("dotenv").config({ path: path.join(__dirname, '..', '..', '..', '..', '.env') });
+const { BlobServiceClient } = require('@azure/storage-blob');
+const { v4: uuidv4 } = require('uuid');
 
 let logger = utils.getLogger();
 

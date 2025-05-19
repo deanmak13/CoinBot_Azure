@@ -1,5 +1,6 @@
 import time
 import threading
+import queue
 from flask import request, jsonify
 import utils
 from event.data_preprocessor import dict_to_product_candle, DataPreprocessor
@@ -8,124 +9,119 @@ from event.model.EventType import EventType
 
 _logger = utils.get_logger("Insights")
 
-# Configuration constants
-BUFFER_SIZE_THRESHOLD = 10  # Flush if the buffer has at least this many events
-DELAY_THRESHOLD = 5  # Seconds to wait before considering an event stale
+BUFFER_SIZE_THRESHOLD = 10
+DELAY_THRESHOLD = 5
+WORKER_THREAD_COUNT = 6
 
-# Global buffer for events: keys are event IDs (ULID strings), values are event dicts with a 'received_at' timestamp.
+# Shared in-memory structures
 buffer_store = {}
-buffer_lock = threading.Lock()  # Lock for synchronizing access to buffer_store
+buffer_lock = threading.Lock()
+candle_event_queue = queue.Queue()
+candle_store = {}  # NEW: shared across all threads
 
 def handle_events():
     try:
         validation_response = validate_event_grid(request)
         if validation_response:
-            return validation_response  # Early exit if validation is needed
+            return validation_response
 
-        # Parse the Event Grid events
         events = request.get_json()
+        now = time.time()
 
-        process_event(events)
+        with buffer_lock:
+            for event in events:
+                event_id = event.get('id')
+                event_type = event.get('eventType')
+                if not event_id or not event_type:
+                    _logger.error(f"Invalid event: {event}")
+                    continue
 
-        return jsonify({"message": "Events handled successfully."}), 200
+                event['received_at'] = now
+
+                if event_type == EventType.CANDLE:
+                    buffer_store[event_id] = event
+                    flushed = flush_buffer(now)
+                    if flushed:
+                        candle_event_queue.put(flushed)
+
+                elif event_type == EventType.HISTORICAL_CANDLE:
+                    _logger.info(f"Immediate processing: skipping buffer for batched event [Event I.D: {event_id}]")
+                    threading.Thread(target=process_batched_event, args=(event,), daemon=True).start()
+
+                else:
+                    _logger.info(f"Unexpected event type [EventType: {event_type}, Event I.D: {event_id}]")
+
+        return jsonify({"message": "Events handled."}), 200
 
     except Exception as e:
-        _logger.exception(f"Exception encountered handling event: {e}")
+        _logger.exception(f"Exception handling event: {e}")
         return jsonify({"error": str(e)}), 400
 
 def validate_event_grid(req):
-    # Handle Event Grid validation
     if req.headers.get('aeg-event-type') == 'SubscriptionValidation':
         validation_event = req.get_json()[0]
         validation_code = validation_event['data']['validationCode']
         return jsonify({'validationResponse': validation_code})
     return None
 
-def process_event(events):
-    global buffer_store
-    now = time.time()
-
-    with buffer_lock:
-        # Buffer incoming events, tagging each with the current timestamp.
-        for event in events:
-            event_id = event.get('id')
-            if not event_id:
-                _logger.error(f"Event missing id: {event}")
-                continue
-            event_type = event.get('eventType')
-            if not event_type:
-                _logger.error(f"Event missing type: {event}")
-            event['received_at'] = now
-
-            match event_type:
-                case EventType.CANDLE:
-                    buffer_store[event_id] = event
-                    flushed_event = flush_buffer(now)
-                    if flushed_event:
-                        process_ordered_event(flushed_event)
-                case EventType.HISTORICAL_CANDLE:
-                    _logger.info(f"Immediate processing: skipping buffer for batched data event [Event I.D: {event_id}]")
-                    process_batched_event(event)
-                case _:
-                    _logger.info(f"Received an unexpected event type [Event Type: {event_type},Event I.D: {event_id}]")
-
 def flush_buffer(now):
-    global buffer_store
     if not buffer_store:
-        return
+        return None
 
-    # Sort buffered event IDs lexicographically (ULIDs sort in order of creation)
     sorted_ids = sorted(buffer_store.keys())
     _logger.debug(f"Buffer size: {len(buffer_store)}. Sorted IDs: {sorted_ids}")
 
-    # Option 1: Check for any event that has been waiting longer than the delay threshold.
     for event_id in sorted_ids:
         event = buffer_store.get(event_id)
-        if event is None:
-            continue  # Skip if it's already been removed
+        if not event:
+            continue
         if now - event['received_at'] >= DELAY_THRESHOLD:
-            _logger.info(f"Flushing event from buffer [Event I.D: {event_id}] (time threshold met, waited {(now - event['received_at']):.2f} seconds)")
+            _logger.info(f"Flushing event [EventId: {event_id}] due to time delay")
             del buffer_store[event_id]
             return event
 
-    # Option 2: If no stale event, but the buffer is too large, flush the event with the smallest ID.
     if len(buffer_store) >= BUFFER_SIZE_THRESHOLD:
-        oldest_event_id = sorted_ids[0]
-        event = buffer_store.get(oldest_event_id)
+        oldest_id = sorted_ids[0]
+        event = buffer_store.pop(oldest_id, None)
         if event:
-            _logger.info(f"Flushing event from buffer [Event I.D: {oldest_event_id}] (size threshold met, buffer size: {len(buffer_store)})")
-            del buffer_store[oldest_event_id]
+            _logger.info(f"Flushing event [EventId: {oldest_id}] due to buffer size limit")
             return event
 
-def process_ordered_event(event):
-    try:
-        data = event.get('data')
-        event_id = event.get('id')
-        _logger.info(f"Processing {EventType.CANDLE} event type. [Event I.D: {event_id}]")
-        product_candle = dict_to_product_candle(data)
-        product_candle_analysis = update_technical_indicators(product_candle)
-        DataPreprocessor().eventise_product_candle_analysis(event_id, product_candle_analysis)
-    except Exception as e:
-        _logger.exception(f"Exception encountered processing ordered events: {e}")
+    return None
+
+def process_ordered_event_worker():
+    while True:
+        event = candle_event_queue.get()
+        try:
+            data = event.get('data')
+            event_id = event.get('id')
+            _logger.info(f"[Worker] Processing CANDLE event [EventId: {event_id}]")
+            product_candle = dict_to_product_candle(data)
+            analysis = update_technical_indicators(product_candle, candle_store)
+            DataPreprocessor().eventise_product_candle_analysis(event_id, analysis)
+        except Exception as e:
+            _logger.exception(f"[Worker] Failed to process CANDLE event: {e}")
+        finally:
+            candle_event_queue.task_done()
 
 def process_batched_event(event):
     try:
         data = event.get('data')
         event_id = event.get('id')
-        _logger.info(f"Processing {len(data)} {EventType.HISTORICAL_CANDLE} event type. [Event I.D: {event_id}]")
-        if isinstance(data, list):
-            data_iterable = data
-        elif isinstance(data, dict):
-            data_iterable = data.values()
-        else:
-            _logger.error("Unexpected data format in HISTORICAL_CANDLE event.")
-            return
+        _logger.info(f"Processing {len(data)} HISTORICAL_CANDLE entries [EventId: {event_id}]")
 
-        product_candle_batch_list = []
-        for candle_data in data_iterable:
-            product_candle = dict_to_product_candle(candle_data)
-            product_candle_batch_list.append(product_candle)
-        product_candle_analysis_batch = update_technical_indicators_batch(product_candle_batch_list)
-        DataPreprocessor().eventise_product_candle_analysis_batch(event_id, product_candle_analysis_batch)
+        data_iterable = data if isinstance(data, list) else data.values()
+        candles = [dict_to_product_candle(c) for c in data_iterable]
+        batch = update_technical_indicators_batch(candles, candle_store)
+        DataPreprocessor().eventise_product_candle_analysis_batch(event_id, batch)
+
     except Exception as e:
-        _logger.exception(f"Exception encountered processing ordered events: {e}")
+        _logger.exception(f"Exception in HISTORICAL_CANDLE event processing: {e}")
+
+def start_candle_event_workers():
+    for i in range(WORKER_THREAD_COUNT):
+        thread = threading.Thread(target=process_ordered_event_worker, daemon=True)
+        thread.start()
+        _logger.info(f"Started worker thread #{i+1} for handling candle data events")
+
+start_candle_event_workers()

@@ -1,27 +1,27 @@
 import { useEffect } from "react";
 
-const subscribeToWebsocketPublisher = (url, dataHandler) => {
-    useEffect(() => {
-        const ws = new WebSocket(url);
+export const subscribeToWebsocketPublisher = (url, dataHandler) => {
+    const ws = new WebSocket(url);
 
-        ws.onopen = () => {
-            console.log("Subscribed to WebSocket");
-        };
+    ws.onopen = () => {
+        console.log("Subscribed to WebSocket");
+    };
 
-        ws.onmessage = (event) => {
-            const parsedData = JSON.parse(event.data);
-            console.debug("Received Data via websocket:", parsedData);
-            dataHandler(parsedData);
-        };
+    ws.onmessage = (event) => {
+        const parsedData = JSON.parse(event.data);
+        console.debug("Received Data via websocket:", parsedData);
+        dataHandler(parsedData);
+    };
 
-        ws.onclose = () => {
-            console.log("WebSocket Disconnected");
-        };
+    ws.onclose = () => {
+        console.log("WebSocket Disconnected");
+    };
 
-        return () => {
-            ws.close();
-        };
-    }, [url, dataHandler]);
+    return () => {
+        ws.close();
+        console.log("WebSocket manually closed");
+    };
 };
+
 
 export default subscribeToWebsocketPublisher;

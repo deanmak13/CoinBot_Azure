@@ -11,14 +11,6 @@ candle_data:
   event_grid.subscription_endpoint: "/subscribe/candles/data"
   event_grid.port: 5000
 
-candle_analytics:
-  core_handler.payload_mb_limit: 5
-  event_grid.event_type: "productCandleDataAnalytics"
-  event_grid.batch_event_type: "productCandleDataAnalyticsBatch"
-  event_grid.subscription_name: "product-candle-analysis-data"
-  event_grid.subscription_endpoint: "/subscribe/candles/analytics"
-  event_grid.port: 8000
-
 historical_candle_data:
   product_ids:
     - "BTC-USD"
@@ -28,8 +20,8 @@ historical_candle_data:
   granularity_minutes: 5
   delivery_cooldown_seconds: 5
   event_grid.event_type: "historicalProductCandleData"
-  event_grid.subscription_name: "product-candle-data"
-  event_grid.subscription_endpoint: "/subscribe/candles/data"
+  event_grid.subscription_name: "product-candle-batch-notifications"
+  event_grid.subscription_endpoint: "/subscribe/candles/data/notif"
   event_grid.port: 5000
   time_ranges:
     - label: "1 Day Ago"
@@ -50,3 +42,16 @@ historical_candle_data:
     - label: "1 Year Ago"
       value: "1y"
       granularity_minutes: 1440 # expected candle count = 365
+
+candle_analytics:
+  event_grid.event_type: "productCandleDataAnalytics"
+  event_grid.subscription_name: "product-candle-analysis-data"
+  event_grid.subscription_endpoint: "/subscribe/candles/analytics"
+  event_grid.port: 8000
+
+candle_analytics_batch:
+  core_handler.payload_mb_limit: 5
+  event_grid.event_type: "productCandleDataAnalyticsBatch"
+  event_grid.subscription_name: "product-candle-analysis-batch-notifications"
+  event_grid.subscription_endpoint: "/subscribe/candles/analytics/notif"
+  event_grid.port: 8000

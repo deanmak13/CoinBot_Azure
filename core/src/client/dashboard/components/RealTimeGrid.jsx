@@ -49,6 +49,7 @@ export default function RealTimeGrid() {
     const [timeRanges, setTimeRanges] = useState([]);
     const [ticker, setTicker] = useState(null);
     const [timeRange, setTimeRange] = useState(null);
+    const [activeStreaming, setActiveStreaming] = useState(true);
 
     // Fetch config from backend
     useEffect(() => {
@@ -72,17 +73,38 @@ export default function RealTimeGrid() {
         if (ticker && timeRange) {
             fetch(`/api/latestAnalytics?ticker=${ticker}&range=${timeRange}`)
                 .then(res => res.json())
-                .then(setData)
+                .then(res => {
+                    setData(res.data);
+                    setActiveStreaming(res.activeStreaming);
+                })
                 .catch(err => console.error("Failed to fetch analytics:", err));
         }
     }, [ticker, timeRange]);
 
     // Listen for live updates
-    subscribeToWebsocketPublisher(`${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`, (receivedData)=>{
-        if (receivedData.id[0] === ticker){
-            setData(receivedData)
-        }
-    });
+    useEffect(() => {
+        const wsUrl = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
+
+        // If activeStreaming === true: only allow 5-minute data. If activeStreaming === false: reject 5-minute data, allow others.
+        // This prevents real time data from overriding historical data at granularity level
+        // Includes null/undefined safety on array access
+        const unsubscribe = subscribeToWebsocketPublisher(wsUrl, (receivedData) => {
+            const granularity = receivedData.granularity_mins?.[0];
+            const tickerMatch = receivedData.id?.[0] === ticker;
+
+            if (!tickerMatch || granularity == null) return;
+
+            if (activeStreaming && granularity === 5) {
+                setData(receivedData);
+            } else if (!activeStreaming && granularity !== 5) {
+                setData(receivedData);
+            }
+        });
+
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
+    }, [ticker, activeStreaming]);
 
     return (
         <Box sx={{ width: '100%', maxWidth: { sm: '100%', md: '1700px' } }}>

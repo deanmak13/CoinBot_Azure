@@ -1,5 +1,5 @@
 const { monotonicFactory  } = require('ulid');
-const {createEvent, publishEvent} = require("./event_grid_publisher");
+const {createEvent, publishEvent, uploadLargeAnalytics} = require("./event_grid_publisher");
 const utils = require('../utils');
 const {EventType} = require('./model/EventType');
 

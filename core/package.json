@@ -24,6 +24,7 @@
     "@azure/eventgrid": "^5.9.0",
     "@azure/identity": "^4.0.1",
     "@azure/keyvault-secrets": "^4.8.0",
+    "@azure/storage-blob": "^12.27.0",
     "@bufbuild/buf": "^1.50.0",
     "@coinbase/cdp-sdk": "^1.8.0",
     "@emotion/react": "^11.14.0",
@@ -41,6 +42,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^13.5.0",
+    "async-mutex": "^0.5.0",
     "axios": "^1.6.7",
     "chart.js": "^4.4.7",
     "chartjs-adapter-date-fns": "^3.0.0",
@@ -70,6 +72,7 @@
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7",
     "ulid": "^2.3.0",
+    "uuid": "^11.1.0",
     "web-vitals": "^2.1.4",
     "websocket": "^1.0.35",
     "ws": "^8.18.0"

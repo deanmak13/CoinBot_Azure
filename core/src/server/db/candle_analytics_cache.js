@@ -11,6 +11,7 @@ try {
     logger.info("Initialising Candle Analytics Caching database")
     dbPath = path.join(__dirname, '..', '..', '..', '..', 'sqlite', 'anal.db');
     database = new DatabaseSync(dbPath);
+    database.exec("PRAGMA journal_mode = WAL;");
 } catch (e) {
     logger.error('Failed to initialise database:', e);
     process.exit(1);
@@ -74,6 +75,7 @@ function insertDBAnalyticsBatch(analyticsDataArray) {
                 sql.run(row);
             }
             DB.exec("COMMIT");
+            logger.info(`Finished inserting batch of size ${analyticsDataArray.length} into cache`);
         } catch (err) {
             DB.exec("ROLLBACK");
             logger.error("Failed to batch write candle analytics to database:", err);

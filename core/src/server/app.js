@@ -13,6 +13,7 @@ const {readDBAnalytics, readDBAnalyticsMetrics} = require("./db/candle_analytics
 const app = express();
 const port = process.env.WEBSITES_PORT || 8000;
 const candleAnalyticsConfig = utils.getConfig("candle_analytics", "events.yaml");
+const candleAnalyticsBatchConfig = utils.getConfig("candle_analytics_batch", "events.yaml");
 const candleConfig = utils.getConfig("candle_data", "events.yaml");
 const historicalCandleConfig = utils.getConfig("historical_candle_data", "events.yaml");
 const historicalDeliveryCooldownCache = {};
@@ -38,7 +39,7 @@ function streamRealTimeProductCandleData() {
     );
 }
 
-async function batchDeliverHistoricalProductCandleData(startTime, endTime, granularityMinutes) {
+async function batchDeliverHistoricalProductCandleData(ticker, startTime, endTime, granularityMinutes) {
     // Test connection first
     logger.info("Testing Coinbase API connection...");
     const connected = await historicalMarketDataSocket.testApiConnection();
@@ -51,7 +52,7 @@ async function batchDeliverHistoricalProductCandleData(startTime, endTime, granu
     // Proceed to request Product Candle Data
     logger.info("Requesting Historical Product Candle Data...");
     let productCandleRequest = new ProductCandleRequest();
-    productCandleRequest.setProductIdList(historicalCandleConfig["product_ids"]);
+    productCandleRequest.setProductIdList([ticker]);
     productCandleRequest.setGranularity(granularityMinutes)
 
     await historicalMarketDataSocket.fetchProductCandleData(productCandleRequest, endTime, startTime, (candleBatch, batchProductId) => {
@@ -78,9 +79,10 @@ function isInHistoricalDeliveryCooldown(ticker, range) {
 }
 
 function setupEventGridRoutes() {
-    const candleAnalyticsSubEndPoint = candleAnalyticsConfig['event_grid.subscription_endpoint'];
     const eventGridRouter = Router();
-    const MAX_SIZE_BYTES = candleAnalyticsConfig['core_handler.payload_mb_limit'] * 1024 * 1024; // MB to KB
+    const candleAnalyticsSubEndPoint = candleAnalyticsConfig['event_grid.subscription_endpoint'];
+    const candleAnalyticsBatchSubEndpoint = candleAnalyticsBatchConfig['event_grid.subscription_endpoint'];
+    const MAX_SIZE_BYTES = candleAnalyticsBatchConfig['core_handler.payload_mb_limit'] * 1024 * 1024; // MB to KB
 
     eventGridRouter.use((req, res, next) => {
         const size = Number(req.headers['content-length'] || 0);
@@ -96,8 +98,12 @@ function setupEventGridRoutes() {
     logger.info(`Registering Event Grid route: POST ${candleAnalyticsSubEndPoint}`);
     eventGridRouter.post(candleAnalyticsSubEndPoint, handleEvents);
 
+    logger.info(`Registering Event Grid route: POST ${candleAnalyticsBatchSubEndpoint}`);
+    eventGridRouter.post(candleAnalyticsBatchSubEndpoint, handleEvents);
+
     app.use('/', eventGridRouter);
     logger.info(`EventGridSubscriber configured for endpoint: ${candleAnalyticsSubEndPoint}`);
+    logger.info(`EventGridSubscriber configured for endpoint: ${candleAnalyticsBatchSubEndpoint}`);
 }
 
 function setupFrontEndRoutes() {
@@ -127,7 +133,6 @@ function setupFrontEndRoutes() {
 
     app.get('/api/latestAnalytics', async (req, res) => {
         const {ticker, range: timeRangeValue} = req.query;
-        // console.log("RECEIVED LATEST ANALYTICS RE");
         // Request Validation Checks
         if (!ticker || !timeRangeValue) {
             return res.status(400).json({error: "Missing 'ticker' or 'range' query param"});
@@ -175,7 +180,7 @@ function setupFrontEndRoutes() {
                 for (let i = 0; i < expectedApiCalls; i++) {
                     const batchStartTime = batchEndTime - timePartition;
                     promises.push(
-                        batchDeliverHistoricalProductCandleData(batchStartTime, batchEndTime, granularityMinutes)
+                        batchDeliverHistoricalProductCandleData(ticker, batchStartTime, batchEndTime, granularityMinutes)
                     );
                     batchEndTime = batchStartTime;
                 }
@@ -185,7 +190,10 @@ function setupFrontEndRoutes() {
 
             const storedData = readDBAnalytics(ticker, startTime, granularityMinutes);
             logger.info(`Responding to /api/latestAnalytics request [ticker:${ticker}, timeRange: ${timeRangeValue}]`);
-            res.json(storedData);
+            res.json({
+                activeStreaming: granularityMinutes===candleConfig["granularity_minutes"],  // or whatever variable you used
+                data: storedData
+            });
         } catch (err) {
             console.error("DB read error:", err);
             res.status(500).json({error: "Internal server error"});
@@ -203,9 +211,6 @@ async function startServer() {
     await setupEventGridRoutes();
     setupFrontEndRoutes();
 
-    // Begin pulling real time product candle data
-    await streamRealTimeProductCandleData();
-
     // Create the HTTP server with WebSocket support
     const server = setupWebSocketServer(app);
 
@@ -215,11 +220,16 @@ async function startServer() {
         logger.info(`- Front-end serving from build directory`);
         logger.info(`- WebSocket server attached`);
         const candleAnalyticsSubEndPoint = candleAnalyticsConfig['event_grid.subscription_endpoint'];
+        const candleAnalyticsBatchSubEndPoint = candleAnalyticsBatchConfig['event_grid.subscription_endpoint'];
         logger.info(`- Event Grid webhook at ${candleAnalyticsSubEndPoint}`);
+        logger.info(`- Event Grid webhook at ${candleAnalyticsBatchSubEndPoint}`);
     }).on('error', (err) => {
         logger.error(`Failed to start server: ${err.message}`);
         process.exit(1);
     });
+
+    // Begin pulling real time product candle data
+    await streamRealTimeProductCandleData();
 }
 
 startServer().catch(err => {
